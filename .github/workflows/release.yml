@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  universal:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build universal application
+        env:
+          ARCHS: "x86_64 arm64"
+        run: bash Scripts/build-app.sh
+      - name: Verify architectures
+        run: |
+          file dist/TouchingBar.app/Contents/MacOS/TouchingBar
+          file dist/TouchingBar.app/Contents/MacOS/TouchingBarCtl
+          lipo -archs dist/TouchingBar.app/Contents/MacOS/TouchingBar
+          lipo -archs dist/TouchingBar.app/Contents/MacOS/TouchingBarCtl
+          shasum -a 256 dist/TouchingBar.zip | tee dist/TouchingBar.zip.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TouchingBar-universal
+          path: |
+            dist/TouchingBar.zip
+            dist/TouchingBar.zip.sha256
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/TouchingBar.zip
+            dist/TouchingBar.zip.sha256

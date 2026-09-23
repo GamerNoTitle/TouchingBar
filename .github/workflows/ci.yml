@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: |
+          uname -m
+          swift --version
+      - name: Build
+        run: swift build
+      - name: Core checks
+        run: swift run TouchingBarChecks
+      - name: Build universal application
+        env:
+          ARCHS: "x86_64 arm64"
+        run: bash Scripts/build-app.sh
+      - name: Verify universal architectures
+        run: |
+          file dist/TouchingBar.app/Contents/MacOS/TouchingBar
+          file dist/TouchingBar.app/Contents/MacOS/TouchingBarCtl
+          test "$(lipo -archs dist/TouchingBar.app/Contents/MacOS/TouchingBar)" = "x86_64 arm64"
+          test "$(lipo -archs dist/TouchingBar.app/Contents/MacOS/TouchingBarCtl)" = "x86_64 arm64"
+          codesign --verify --deep --strict dist/TouchingBar.app
