@@ -79,6 +79,10 @@ public struct AgentContext: Codable, Equatable, Sendable {
     public var status: AgentStatus
     public var detail: String?
     public var sessionID: String?
+    public var event: String?
+    public var tool: String?
+    public var workingDirectory: String?
+    public var message: String?
     public var startedAt: Date?
     public var updatedAt: Date
 
@@ -88,6 +92,10 @@ public struct AgentContext: Codable, Equatable, Sendable {
         status: AgentStatus = .unknown,
         detail: String? = nil,
         sessionID: String? = nil,
+        event: String? = nil,
+        tool: String? = nil,
+        workingDirectory: String? = nil,
+        message: String? = nil,
         startedAt: Date? = nil,
         updatedAt: Date = Date()
     ) {
@@ -96,6 +104,10 @@ public struct AgentContext: Codable, Equatable, Sendable {
         self.status = status
         self.detail = detail
         self.sessionID = sessionID
+        self.event = event
+        self.tool = tool
+        self.workingDirectory = workingDirectory
+        self.message = message
         self.startedAt = startedAt
         self.updatedAt = updatedAt
     }
@@ -143,16 +155,33 @@ public struct MessageContext: Codable, Identifiable, Equatable, Sendable {
 public struct RuntimeContextSnapshot: Codable, Equatable, Sendable {
     public var developer: DeveloperContext?
     public var agent: AgentContext?
+    public var agents: [AgentContext]?
     public var messages: [MessageContext]
 
     public init(
         developer: DeveloperContext? = nil,
         agent: AgentContext? = nil,
+        agents: [AgentContext]? = nil,
         messages: [MessageContext] = []
     ) {
         self.developer = developer
         self.agent = agent
+        self.agents = agents
         self.messages = messages
+    }
+
+    public mutating func upsertAgent(_ context: AgentContext) {
+        var list = agents ?? agent.map { [$0] } ?? []
+        if let sessionID = context.sessionID,
+           let index = list.firstIndex(where: { $0.sessionID == sessionID }) {
+            list[index] = context
+        } else {
+            list.removeAll { $0.provider == context.provider && $0.task == context.task }
+            list.insert(context, at: 0)
+        }
+        list.sort { $0.updatedAt > $1.updatedAt }
+        agents = Array(list.prefix(10))
+        agent = context
     }
 
     public func value(for contextKey: String) -> String? {
@@ -188,6 +217,20 @@ public struct RuntimeContextSnapshot: Codable, Equatable, Sendable {
             return agent?.detail
         case "duration":
             return agent?.durationText
+        case "event":
+            return agent?.event
+        case "tool":
+            return agent?.tool
+        case "cwd":
+            guard let path = agent?.workingDirectory else { return nil }
+            let home = FileManager.default.homeDirectoryForCurrentUser.path
+            return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
+        case "message":
+            return agent?.message
+        case "sessions":
+            let sessions = agents ?? agent.map { [$0] } ?? []
+            guard !sessions.isEmpty else { return nil }
+            return sessions.prefix(4).map { "\($0.provider): \($0.status.rawValue)" }.joined(separator: " · ")
         default:
             return nil
         }

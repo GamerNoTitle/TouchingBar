@@ -40,7 +40,10 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         super.init()
         configurationCancellable = store.$configuration
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.rebuildTouchBar() }
+            .sink { [weak self] configuration in
+                self?.nowPlayingService.setLyricsOffset(configuration.effectiveLyricsOffset)
+                self?.rebuildTouchBar()
+            }
         runtimeCancellable = store.$runtime
             .receive(on: RunLoop.main)
             .sink { [weak self] snapshot in self?.updateRuntime(snapshot) }
@@ -67,6 +70,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     func start() {
         guard !isStarted else { return }
         isStarted = true
+        nowPlayingService.setLyricsOffset(store.configuration.effectiveLyricsOffset)
         nowPlayingService.start()
         nowPlayingService.observe { [weak self] snapshot in
             self?.nowPlayingViews.forEach { $0.update(snapshot) }

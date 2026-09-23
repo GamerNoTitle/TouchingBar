@@ -30,6 +30,8 @@ public struct AgentHookNormalizer: Sendable {
             "task", "prompt", "message", "title", "summary", "command", "cwd"
         ]), length: 96)
         let toolName = firstString(in: event, keys: ["tool_name", "tool", "name"])
+        let workingDirectory = firstString(in: event, keys: ["cwd", "working_directory", "workingDirectory"])
+        let message = truncate(firstString(in: event, keys: ["message", "notification_message", "content"]), length: 160)
         let detail = truncate(firstString(in: event, keys: [
             "detail", "description", "reason", "result"
         ]) ?? toolName, length: 160)
@@ -44,6 +46,10 @@ public struct AgentHookNormalizer: Sendable {
             status: status,
             detail: detail,
             sessionID: sessionID,
+            event: eventName.isEmpty ? nil : eventName,
+            tool: toolName,
+            workingDirectory: workingDirectory,
+            message: message,
             startedAt: startedAt,
             updatedAt: Date()
         )

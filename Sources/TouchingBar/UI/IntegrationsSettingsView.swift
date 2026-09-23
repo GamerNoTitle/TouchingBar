@@ -85,6 +85,18 @@ struct IntegrationsSettingsView: View {
                 }
                 GridRow {
                     Text("")
+                    Toggle(
+                        "Agent 状态变化时显示系统通知",
+                        isOn: Binding(
+                            get: { store.configuration.effectiveShowAgentNotifications },
+                            set: { value in
+                                store.updateConfiguration { $0.effectiveShowAgentNotifications = value }
+                            }
+                        )
+                    )
+                }
+                GridRow {
+                    Text("")
                     Button("发送到 Touch Bar") {
                         sendAgentHook()
                     }

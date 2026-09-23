@@ -51,6 +51,8 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
     public var menuBar: MenuBarSettings
     public var messages: MessageSettings
     public var webDAV: WebDAVSettings
+    public var lyricsOffset: Double?
+    public var showAgentNotifications: Bool?
     public var presets: [TouchBarPreset]
 
     public init(
@@ -62,6 +64,8 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         menuBar: MenuBarSettings = MenuBarSettings(),
         messages: MessageSettings = MessageSettings(),
         webDAV: WebDAVSettings = WebDAVSettings(),
+        lyricsOffset: Double = 0,
+        showAgentNotifications: Bool = true,
         presets: [TouchBarPreset] = BuiltInPresets.make()
     ) {
         self.schemaVersion = schemaVersion
@@ -72,10 +76,22 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         self.menuBar = menuBar
         self.messages = messages
         self.webDAV = webDAV
+        self.lyricsOffset = lyricsOffset
+        self.showAgentNotifications = showAgentNotifications
         self.presets = presets
         if self.activePresetID == nil {
             self.activePresetID = presets.first?.id
         }
+    }
+
+    public var effectiveShowAgentNotifications: Bool {
+        get { showAgentNotifications ?? true }
+        set { showAgentNotifications = newValue }
+    }
+
+    public var effectiveLyricsOffset: Double {
+        get { lyricsOffset ?? 0 }
+        set { lyricsOffset = max(-10, min(10, newValue)) }
     }
 
     public var activePreset: TouchBarPreset? {
@@ -90,8 +106,22 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         }
         migrateDeveloperPresetToolchains()
         migrateSystemFunctionPreset()
+        migrateAgentPresetContext()
         if activePresetID == nil || !presets.contains(where: { $0.id == activePresetID }) {
             activePresetID = presets.first?.id
+        }
+    }
+
+    private mutating func migrateAgentPresetContext() {
+        let defaults = BuiltInPresets.agents().items
+        for index in presets.indices where presets[index].kind == .agents {
+            let existingKeys = Set(presets[index].items.compactMap(\.contextKey))
+            for item in defaults where item.presentation == .context {
+                guard let key = item.contextKey, !existingKeys.contains(key) else { continue }
+                var copied = item
+                copied.id = UUID()
+                presets[index].items.append(copied)
+            }
         }
     }
 

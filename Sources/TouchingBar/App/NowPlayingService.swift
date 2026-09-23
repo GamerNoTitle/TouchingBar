@@ -9,6 +9,7 @@ struct NowPlayingSnapshot: Equatable {
     var lyrics: String?
     var player: String?
     var position: TimeInterval
+    var lyricsOffset: TimeInterval = 0
 
     static let unavailable = NowPlayingSnapshot(
         title: "未在播放",
@@ -28,7 +29,8 @@ struct NowPlayingSnapshot: Equatable {
 
     var currentLyricLine: String? {
         guard let lyrics, !lyrics.isEmpty else { return nil }
-        if let timedLine = timedLyrics(from: lyrics).last(where: { $0.time <= position + 0.35 }) {
+        let effectivePosition = position - lyricsOffset
+        if let timedLine = timedLyrics(from: lyrics).last(where: { $0.time <= effectivePosition + 0.35 }) {
             return timedLine.text
         }
         return lyrics
@@ -61,30 +63,14 @@ final class NowPlayingService {
     private var timer: DispatchSourceTimer?
     private var lastSnapshot: NowPlayingSnapshot = .unavailable
     private var handlers: [(NowPlayingSnapshot) -> Void] = []
+    private var lyricsOffset: TimeInterval = 0
 
     func start() {
         guard timer == nil else { return }
         let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now(), repeating: 2.0)
+        timer.schedule(deadline: .now(), repeating: 0.5)
         timer.setEventHandler { [weak self] in
-            guard let self else { return }
-            let snapshot = self.readSnapshot()
-            guard snapshot != self.lastSnapshot else { return }
-            self.lastSnapshot = snapshot
-            if ProcessInfo.processInfo.environment["TOUCHINGBAR_DEBUG"] == "1" {
-                NSLog(
-                    "NowPlaying player=%@ title=%@ artist=%@ position=%.2f lyrics=%ld",
-                    snapshot.player ?? "none",
-                    snapshot.title,
-                    snapshot.artist,
-                    snapshot.position,
-                    snapshot.lyrics?.count ?? 0
-                )
-                NSLog("NowPlaying lyric=%@", snapshot.currentLyricLine ?? "nil")
-            }
-            DispatchQueue.main.async {
-                self.handlers.forEach { $0(snapshot) }
-            }
+            self?.pollOnce()
         }
         timer.resume()
         self.timer = timer
@@ -109,6 +95,36 @@ final class NowPlayingService {
         // Tokens are intentionally simple for now; handlers remain valid for
         // the lifetime of a Touch Bar item, which is the only consumer.
         _ = token
+    }
+
+    func setLyricsOffset(_ offset: TimeInterval) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            self.lyricsOffset = max(-10, min(10, offset))
+            self.pollOnce()
+        }
+    }
+
+    private func pollOnce() {
+        var snapshot = self.readSnapshot()
+        snapshot.lyricsOffset = lyricsOffset
+        guard snapshot != lastSnapshot else { return }
+        lastSnapshot = snapshot
+        if ProcessInfo.processInfo.environment["TOUCHINGBAR_DEBUG"] == "1" {
+            NSLog(
+                "NowPlaying player=%@ title=%@ artist=%@ position=%.2f offset=%.2f lyrics=%ld",
+                snapshot.player ?? "none",
+                snapshot.title,
+                snapshot.artist,
+                snapshot.position,
+                snapshot.lyricsOffset,
+                snapshot.lyrics?.count ?? 0
+            )
+            NSLog("NowPlaying lyric=%@", snapshot.currentLyricLine ?? "nil")
+        }
+        DispatchQueue.main.async { [weak self] in
+            self?.handlers.forEach { $0(snapshot) }
+        }
     }
 
     private func readSnapshot() -> NowPlayingSnapshot {

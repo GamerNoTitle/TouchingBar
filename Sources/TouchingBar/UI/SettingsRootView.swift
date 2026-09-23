@@ -89,6 +89,30 @@ struct GeneralSettingsView: View {
 
             Section {
                 HStack {
+                    Text("歌词全局偏移")
+                    Slider(
+                        value: Binding(
+                            get: { store.configuration.effectiveLyricsOffset },
+                            set: { value in
+                                store.updateConfiguration { $0.effectiveLyricsOffset = value }
+                            }
+                        ),
+                        in: -5...5,
+                        step: 0.1
+                    )
+                    Text(String(format: "%+.1f 秒", store.configuration.effectiveLyricsOffset))
+                        .monospacedDigit()
+                        .frame(width: 72, alignment: .trailing)
+                }
+                Text("正值会让歌词提前显示，负值会让歌词延后显示，对所有歌曲生效。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text("音乐歌词")
+            }
+
+            Section {
+                HStack {
                     Label(
                         accessibilityTrusted ? "辅助功能权限已授权" : "尚未授权辅助功能",
                         systemImage: accessibilityTrusted ? "checkmark.shield.fill" : "exclamationmark.triangle"

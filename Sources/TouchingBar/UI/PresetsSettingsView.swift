@@ -513,7 +513,8 @@ private struct ContextItemsEditor: View {
             "kubernetes": "Kubernetes", "terraform": "Terraform",
             "cmake": "CMake", "xcode": "Xcode",
             "provider": "Agent 厂商", "task": "任务", "status": "状态",
-            "detail": "详情", "duration": "耗时"
+            "detail": "详情", "duration": "耗时", "sessions": "会话列表",
+            "event": "事件", "tool": "工具", "cwd": "工作目录", "message": "消息"
         ][key ?? ""] ?? "未设置"
     }
 }
@@ -544,6 +545,11 @@ private struct ContextItemEditor: View {
                 Text("Terraform").tag("terraform")
                 Text("CMake").tag("cmake")
                 Text("Xcode").tag("xcode")
+                Text("会话列表").tag("sessions")
+                Text("事件").tag("event")
+                Text("工具").tag("tool")
+                Text("工作目录").tag("cwd")
+                Text("消息").tag("message")
                 Text("Agent 厂商").tag("provider")
                 Text("任务").tag("task")
                 Text("状态").tag("status")

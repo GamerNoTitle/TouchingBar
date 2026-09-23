@@ -13,6 +13,7 @@ struct TouchingBarChecks {
         try checkTouchBarLayoutBudget()
         try await checkDeveloperContextProvider()
         try checkAgentHookNormalizer()
+        try checkAgentSessionStore()
         try checkShellHookInstaller()
         try await checkWebDAVClient()
         try await checkHookServer()
@@ -160,12 +161,15 @@ struct TouchingBarChecks {
 
     private static func checkAgentHookNormalizer() throws {
         let normalizer = AgentHookNormalizer()
-        let runningData = Data(#"{"hook_event_name":"PreToolUse","prompt":"Run tests","tool_name":"shell"}"#.utf8)
+        let runningData = Data(#"{"hook_event_name":"PreToolUse","prompt":"Run tests","tool_name":"shell","cwd":"/tmp/project","session_id":"abc"}"#.utf8)
         let running = try normalizer.normalize(data: runningData, fallbackProvider: "claude-code")
         try expect(running.provider == "claude-code", "raw agent hook keeps provider")
         try expect(running.status == .running, "PreToolUse maps to running")
         try expect(running.task == "Run tests", "agent hook extracts task")
         try expect(running.detail == "shell", "agent hook extracts tool detail")
+        try expect(running.tool == "shell", "agent hook extracts tool")
+        try expect(running.event == "PreToolUse", "agent hook extracts event")
+        try expect(running.workingDirectory == "/tmp/project", "agent hook extracts working directory")
 
         let stopped = try normalizer.normalize(
             data: Data(#"{"event":{"type":"Stop","session_id":"abc"}}"#.utf8),
@@ -180,6 +184,36 @@ struct TouchingBarChecks {
         )
         try expect(wrapped.status == .completed, "nested CLI envelope maps status")
         try expect(wrapped.sessionID == "wrapped", "nested CLI envelope extracts session")
+    }
+
+    private static func checkAgentSessionStore() throws {
+        var snapshot = RuntimeContextSnapshot()
+        let first = AgentContext(
+            provider: "codex",
+            task: "Build",
+            status: .running,
+            sessionID: "same-session"
+        )
+        snapshot.upsertAgent(first)
+        let second = AgentContext(
+            provider: "codex",
+            task: "Build",
+            status: .completed,
+            sessionID: "same-session"
+        )
+        snapshot.upsertAgent(second)
+        try expect(snapshot.agents?.count == 1, "Agent sessions are upserted by session id")
+        try expect(snapshot.agents?.first?.status == .completed, "latest Agent session replaces prior state")
+        try expect(snapshot.value(for: "sessions")?.contains("completed") == true, "Agent session summary is exposed")
+
+        var configuration = AppConfiguration()
+        guard let agentIndex = configuration.presets.firstIndex(where: { $0.kind == .agents }) else {
+            throw CheckFailure(message: "agent preset missing")
+        }
+        configuration.presets[agentIndex].items.removeAll { ["sessions", "event", "tool", "cwd"].contains($0.contextKey ?? "") }
+        configuration.normalize()
+        let keys = Set(configuration.presets[agentIndex].items.compactMap(\.contextKey))
+        try expect(keys.isSuperset(of: ["sessions", "event", "tool", "cwd"]), "existing Agent presets migrate context fields")
     }
 
     private static func checkShellHookInstaller() throws {

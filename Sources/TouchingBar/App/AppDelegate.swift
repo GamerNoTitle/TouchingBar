@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindowController: SettingsWindowController!
     private var hookServer: HookServer?
     private let notificationController = MessageNotificationController()
+    private let agentNotificationController = AgentNotificationController()
     private let messageBannerMonitor = MessageBannerMonitor()
     private var cancellables: Set<AnyCancellable> = []
 
@@ -79,6 +80,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.notificationController.process(
                     snapshot.messages,
                     enabled: self.store.configuration.messages.showNotificationBanners
+                )
+                self.agentNotificationController.process(
+                    snapshot.agent,
+                    enabled: self.store.configuration.effectiveShowAgentNotifications
                 )
             }
             .store(in: &cancellables)

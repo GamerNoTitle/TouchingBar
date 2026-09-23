@@ -131,11 +131,11 @@ public final class HookServer: @unchecked Sendable {
                 onContextChange?(snapshot)
             case "/v1/context/agent":
                 let context = try decoder.decode(AgentContext.self, from: request.body)
-                let snapshot = try contextStore.update { $0.agent = context }
+                let snapshot = try contextStore.update { $0.upsertAgent(context) }
                 onContextChange?(snapshot)
             case "/v1/hooks/agent":
                 let context = try AgentHookNormalizer().normalize(data: request.body)
-                let snapshot = try contextStore.update { $0.agent = context }
+                let snapshot = try contextStore.update { $0.upsertAgent(context) }
                 onContextChange?(snapshot)
             case "/v1/messages":
                 let message = try decoder.decode(MessageContext.self, from: request.body)

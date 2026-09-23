@@ -78,9 +78,13 @@ public enum BuiltInPresets {
             kind: .agents,
             content: .agentContext,
             items: [
+                .init(label: "会话", width: .wide, presentation: .context, contextKey: "sessions"),
                 .init(label: "厂商", width: .regular, presentation: .context, contextKey: "provider"),
-                .init(label: "任务", width: .wide, presentation: .context, contextKey: "task"),
                 .init(label: "状态", width: .regular, presentation: .context, contextKey: "status"),
+                .init(label: "任务", width: .wide, presentation: .context, contextKey: "task"),
+                .init(label: "事件", width: .regular, presentation: .context, contextKey: "event"),
+                .init(label: "工具", width: .regular, presentation: .context, contextKey: "tool"),
+                .init(label: "目录", width: .wide, presentation: .context, contextKey: "cwd"),
                 .init(label: "耗时", width: .regular, presentation: .context, contextKey: "duration")
             ],
             isBuiltIn: true
