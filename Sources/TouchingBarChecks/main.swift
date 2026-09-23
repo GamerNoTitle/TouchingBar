@@ -15,6 +15,7 @@ struct TouchingBarChecks {
         try checkAgentHookNormalizer()
         try checkAgentSessionStore()
         try checkShellHookInstaller()
+        try checkAgentHookInstaller()
         try await checkWebDAVClient()
         try await checkHookServer()
         print("TouchingBarChecks: all checks passed")
@@ -251,6 +252,53 @@ struct TouchingBarChecks {
         let uninstalledContent = try String(contentsOf: zshrc, encoding: .utf8)
         try expect(!uninstalledContent.contains(ShellHookInstaller.beginMarker), "shell installer removes marker")
         try expect(uninstalledContent.contains("export TEST_VALUE=1"), "shell installer preserves zshrc on uninstall")
+    }
+
+    private static func checkAgentHookInstaller() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let home = root.appendingPathComponent("home", isDirectory: true)
+        let support = root.appendingPathComponent("Application Support", isDirectory: true)
+        let configURL = home.appendingPathComponent(".claude/settings.json")
+        try FileManager.default.createDirectory(at: configURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let existing: [String: Any] = [
+            "hooks": [
+                "Stop": [
+                    ["hooks": [["type": "command", "command": "user-hook"]]]
+                ]
+            ],
+            "permissions": ["allow": ["Bash(git status)"]]
+        ]
+        try JSONSerialization.data(withJSONObject: existing, options: [.prettyPrinted])
+            .write(to: configURL, options: .atomic)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let installer = AgentHookInstaller()
+        _ = try installer.install(
+            provider: .claudeCode,
+            controlExecutablePath: "/tmp/TouchingBarCtl",
+            homeDirectory: home,
+            applicationSupportDirectory: support
+        )
+        try expect(installer.isInstalled(provider: .claudeCode, homeDirectory: home), "Agent hook installs")
+
+        let installedText = try String(contentsOf: configURL, encoding: .utf8)
+        try expect(installedText.contains("user-hook"), "Agent hook installer preserves user hooks")
+        try expect(installedText.contains(AgentHookInstaller.managedMarker), "Agent hook installer adds managed hook")
+
+        _ = try installer.install(
+            provider: .claudeCode,
+            controlExecutablePath: "/tmp/TouchingBarCtl",
+            homeDirectory: home,
+            applicationSupportDirectory: support
+        )
+        let reinstalledText = try String(contentsOf: configURL, encoding: .utf8)
+        let managedCount = reinstalledText.components(separatedBy: AgentHookInstaller.managedMarker).count - 1
+        try expect(managedCount == 9, "Agent hook installation is idempotent")
+
+        try installer.uninstall(provider: .claudeCode, homeDirectory: home)
+        let uninstalledText = try String(contentsOf: configURL, encoding: .utf8)
+        try expect(!uninstalledText.contains(AgentHookInstaller.managedMarker), "Agent hook uninstall removes managed hooks")
+        try expect(uninstalledText.contains("user-hook"), "Agent hook uninstall preserves user hooks")
     }
 
     private static func checkWebDAVClient() async throws {

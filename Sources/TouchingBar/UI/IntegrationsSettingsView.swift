@@ -12,11 +12,13 @@ struct IntegrationsSettingsView: View {
     @State private var messageBody = ""
     @State private var integrationStatus: String?
     @State private var shellHookInstalled = false
+    @State private var agentHookInstalled: [AgentHookProvider: Bool] = [:]
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 terminalIntegrationSection
+                agentHookInstallerSection
                 hookSection
                 examplesSection
                 messageSection
@@ -25,6 +27,7 @@ struct IntegrationsSettingsView: View {
         }
         .onAppear {
             shellHookInstalled = ShellHookInstaller().isInstalled()
+            refreshAgentHookStatus()
         }
     }
 
@@ -58,6 +61,69 @@ struct IntegrationsSettingsView: View {
             }
             .padding(.top, 6)
         }
+    }
+
+    private var agentHookInstallerSection: some View {
+        GroupBox("Agent Hook 安装") {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("安装后会合并现有配置，只添加或移除 TouchingBar 自己的 Hook，不覆盖其他 Hook。")
+                    .foregroundStyle(.secondary)
+
+                ForEach(AgentHookProvider.allCases) { provider in
+                    HStack {
+                        Label(provider.title, systemImage: providerIcon(provider))
+                        Spacer()
+                        if agentHookInstalled[provider] == true {
+                            Button("移除") { uninstallAgentHook(provider) }
+                        } else {
+                            Button("安装") { installAgentHook(provider) }
+                        }
+                    }
+                }
+            }
+            .padding(.top, 6)
+        }
+    }
+
+    private func providerIcon(_ provider: AgentHookProvider) -> String {
+        switch provider {
+        case .claudeCode: return "moon.stars.fill"
+        case .codex: return "apple.terminal.fill"
+        case .gemini: return "sparkles"
+        case .cursor: return "cursorarrow.rays"
+        }
+    }
+
+    private func installAgentHook(_ provider: AgentHookProvider) {
+        do {
+            let url = try AgentHookInstaller().install(
+                provider: provider,
+                controlExecutablePath: controlExecutablePath
+            )
+            agentHookInstalled[provider] = true
+            integrationStatus = "已安装 \(provider.title) Hook：\(url.path)"
+        } catch {
+            integrationStatus = "安装 \(provider.title) Hook 失败：\(error.localizedDescription)"
+        }
+    }
+
+    private func uninstallAgentHook(_ provider: AgentHookProvider) {
+        do {
+            try AgentHookInstaller().uninstall(provider: provider)
+            agentHookInstalled[provider] = false
+            integrationStatus = "已移除 \(provider.title) Hook。"
+        } catch {
+            integrationStatus = "移除 \(provider.title) Hook 失败：\(error.localizedDescription)"
+        }
+    }
+
+    private func refreshAgentHookStatus() {
+        let installer = AgentHookInstaller()
+        agentHookInstalled = Dictionary(
+            uniqueKeysWithValues: AgentHookProvider.allCases.map {
+                ($0, installer.isInstalled(provider: $0))
+            }
+        )
     }
 
     private var hookSection: some View {
