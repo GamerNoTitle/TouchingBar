@@ -203,11 +203,20 @@ CONFIGURATION=release bash Scripts/build-app.sh
 CONFIGURATION=release ARCHS="x86_64 arm64" bash Scripts/build-app.sh
 ```
 
+打包 DMG：
+
+```bash
+bash Scripts/build-dmg.sh
+```
+
+DMG 中包含 `TouchingBar.app` 和指向 `/Applications` 的快捷方式，并会执行 `hdiutil verify` 校验。
+
 产物：
 
 ```text
 dist/TouchingBar.app
 dist/TouchingBar.zip
+dist/TouchingBar.dmg
 ```
 
 开发运行：
@@ -250,17 +259,18 @@ Sources/TouchingBarChecks/    不依赖 XCTest 的回归检查
 ## CI 与发布
 
 - `.github/workflows/ci.yml` 在 macOS runner 上构建、运行 `TouchingBarChecks`，并生成 `x86_64 + arm64` 通用 App。
-- 每次 CI 运行都会上传 `TouchingBar-universal` artifact，包含 `TouchingBar.zip` 和 `TouchingBar.zip.sha256`。
-- `.github/workflows/release.yml` 构建通用二进制、计算 SHA-256，并在推送 `v*` tag 时创建 GitHub Release。
+- `.github/workflows/dmg.yml` 专门构建通用 App 和 `TouchingBar.dmg`，校验 DMG 后上传 `TouchingBar-dmg` artifact。
+- `.github/workflows/release.yml` 在推送 `v*` tag 时构建 ZIP 与 DMG，计算 SHA-256，并创建 GitHub Release。
+- Release 会同时发布 `TouchingBar.dmg`、`TouchingBar.dmg.sha256`、`TouchingBar.zip` 和 `TouchingBar.zip.sha256`，DMG 是推荐的安装方式。
 
-从命令行提取 CI 产物：
+从命令行提取产物：
 
 ```bash
-gh run list --workflow CI
-gh run download <run-id> -n TouchingBar-universal
+gh run list --workflow DMG
+gh run download <run-id> -n TouchingBar-dmg
 ```
 
-解压 `TouchingBar.zip` 后即可运行 `TouchingBar.app`。
+下载 `TouchingBar.dmg` 后打开映像，将 `TouchingBar.app` 拖入 `Applications` 即可。
 
 ## License
 

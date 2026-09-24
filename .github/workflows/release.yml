@@ -18,17 +18,23 @@ jobs:
         env:
           ARCHS: "x86_64 arm64"
         run: bash Scripts/build-app.sh
-      - name: Verify architectures
+      - name: Build DMG
+        run: bash Scripts/build-dmg.sh
+      - name: Verify application and DMG
         run: |
           file dist/TouchingBar.app/Contents/MacOS/TouchingBar
           file dist/TouchingBar.app/Contents/MacOS/TouchingBarCtl
           lipo -archs dist/TouchingBar.app/Contents/MacOS/TouchingBar
           lipo -archs dist/TouchingBar.app/Contents/MacOS/TouchingBarCtl
+          hdiutil verify dist/TouchingBar.dmg
           shasum -a 256 dist/TouchingBar.zip | tee dist/TouchingBar.zip.sha256
+          shasum -a 256 dist/TouchingBar.dmg | tee dist/TouchingBar.dmg.sha256
       - uses: actions/upload-artifact@v4
         with:
-          name: TouchingBar-universal
+          name: TouchingBar-release
           path: |
+            dist/TouchingBar.dmg
+            dist/TouchingBar.dmg.sha256
             dist/TouchingBar.zip
             dist/TouchingBar.zip.sha256
       - name: Publish GitHub release
@@ -36,5 +42,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            dist/TouchingBar.dmg
+            dist/TouchingBar.dmg.sha256
             dist/TouchingBar.zip
             dist/TouchingBar.zip.sha256

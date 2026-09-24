@@ -1,0 +1,44 @@
+name: DMG
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["master"]
+
+jobs:
+  build-dmg:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: |
+          uname -m
+          swift --version
+      - name: Build universal application
+        env:
+          ARCHS: "x86_64 arm64"
+        run: bash Scripts/build-app.sh
+      - name: Build DMG
+        run: bash Scripts/build-dmg.sh
+      - name: Verify application and DMG
+        run: |
+          test "$(lipo -archs dist/TouchingBar.app/Contents/MacOS/TouchingBar)" = "x86_64 arm64"
+          test "$(lipo -archs dist/TouchingBar.app/Contents/MacOS/TouchingBarCtl)" = "x86_64 arm64"
+          codesign --verify --deep --strict dist/TouchingBar.app
+          hdiutil verify dist/TouchingBar.dmg
+          shasum -a 256 dist/TouchingBar.dmg | tee dist/TouchingBar.dmg.sha256
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: TouchingBar-dmg
+          path: |
+            dist/TouchingBar.dmg
+            dist/TouchingBar.dmg.sha256
+          if-no-files-found: error
+          retention-days: 14
+      - name: Artifact summary
+        run: |
+          echo "### TouchingBar DMG artifact" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Artifact: \`TouchingBar-dmg\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Contains \`TouchingBar.dmg\` and \`TouchingBar.dmg.sha256\`." >> "$GITHUB_STEP_SUMMARY"
