@@ -2077,13 +2077,16 @@ private struct ChartColorEditor: View {
             case .rgb:
                 HStack(spacing: 8) {
                     Text("R")
-                    TextField("0", text: $redText)
+                    TextField("", text: $redText)
+                        .labelsHidden()
                         .frame(width: 76)
                     Text("G")
-                    TextField("0", text: $greenText)
+                    TextField("", text: $greenText)
+                        .labelsHidden()
                         .frame(width: 76)
                     Text("B")
-                    TextField("0", text: $blueText)
+                    TextField("", text: $blueText)
+                        .labelsHidden()
                         .frame(width: 76)
                     Button("应用") { applyRGB() }
                 }
