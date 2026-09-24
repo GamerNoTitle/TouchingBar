@@ -192,13 +192,19 @@ struct GitHubPetInstallSheet: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
-            TextField("https://github.com/<user>/<repo>", text: $repositoryURL)
-                .textFieldStyle(.roundedBorder)
-                .disabled(isInstalling)
-                .onSubmit {
-                    guard !repositoryURL.isEmpty, !isInstalling else { return }
-                    Task { await install() }
+            HStack(spacing: 8) {
+                TextField("https://github.com/<user>/<repo>", text: $repositoryURL)
+                    .textFieldStyle(.roundedBorder)
+                    .disabled(isInstalling)
+                    .onSubmit {
+                        guard !repositoryURL.isEmpty, !isInstalling else { return }
+                        Task { await install() }
+                    }
+                Button("粘贴") {
+                    pasteRepositoryURL()
                 }
+                .disabled(isInstalling)
+            }
 
             if isInstalling {
                 HStack(spacing: 8) {
@@ -230,6 +236,11 @@ struct GitHubPetInstallSheet: View {
         }
         .padding(20)
         .frame(width: 520)
+    }
+
+    private func pasteRepositoryURL() {
+        guard let value = NSPasteboard.general.string(forType: .string) else { return }
+        repositoryURL = value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     @MainActor
