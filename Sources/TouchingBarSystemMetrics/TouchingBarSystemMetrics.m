@@ -89,16 +89,18 @@ static BOOL TBReadSMCKey(uint32_t key, SMCKeyData *output) {
     }
 
     uint32_t dataSize = output->keyInfo.dataSize;
+    uint32_t dataType = output->keyInfo.dataType;
     input.keyInfo = output->keyInfo;
     input.data8 = 5;
     outputSize = sizeof(SMCKeyData);
     result = IOConnectCallStructMethod(gSMCConnection, 2, &input, sizeof(input), output, &outputSize);
     if (result == KERN_SUCCESS && output->result == 0 && dataSize > 0) {
         output->keyInfo.dataSize = dataSize;
+        output->keyInfo.dataType = dataType;
     }
     BOOL success = result == KERN_SUCCESS && output->result == 0 && dataSize > 0;
     if (getenv("TOUCHINGBAR_SMC_DEBUG") != NULL) {
-        fprintf(stderr, "SMC read key=%08x kr=0x%x result=%u status=%u size=%u bytes=%02x %02x\n", key, result, output->result, output->status, dataSize, output->bytes[0], output->bytes[1]);
+        fprintf(stderr, "SMC read key=%08x kr=0x%x result=%u status=%u size=%u bytes=%02x %02x %02x %02x\n", key, result, output->result, output->status, dataSize, output->bytes[0], output->bytes[1], output->bytes[2], output->bytes[3]);
     }
     [gSMCLock unlock];
     return success;

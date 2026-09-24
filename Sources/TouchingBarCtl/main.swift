@@ -81,6 +81,8 @@ private enum TouchingBarCtlCommand {
             print(ShellHookInstaller().isInstalled() ? "installed" : "not-installed")
 
         case "metrics":
+            _ = TBSystemMetricsSample()
+            usleep(500_000)
             let metrics = TBSystemMetricsSample()
             print(String(format: "CPU %.1f%%", metrics.cpuUsagePercent))
             print(String(format: "GPU %.1f%%", metrics.gpuUsagePercent))
