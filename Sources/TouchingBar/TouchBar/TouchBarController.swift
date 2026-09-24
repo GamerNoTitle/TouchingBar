@@ -460,9 +460,11 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
     private func hasDisplayableContextValue(for item: TouchBarItemConfiguration) -> Bool {
         guard let key = item.contextKey,
-              Self.adaptiveContextKeys.contains(key),
-              let value = contextValue(for: key) else {
+              Self.adaptiveContextKeys.contains(key) else {
             return true
+        }
+        guard let value = contextValue(for: key) else {
+            return false
         }
         return !value.isEmpty && value != "—"
     }
