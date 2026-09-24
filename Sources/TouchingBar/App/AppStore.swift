@@ -5,7 +5,12 @@ import TouchingBarCore
 
 @MainActor
 final class AppStore: ObservableObject {
-    @Published var configuration: AppConfiguration
+    @Published var configuration: AppConfiguration {
+        didSet {
+            hasUnsavedChanges = configuration != savedConfiguration
+        }
+    }
+    @Published private(set) var hasUnsavedChanges = false
     @Published var runtime: RuntimeContextSnapshot
     @Published var lastError: String?
     @Published var hookServerRunning = false
@@ -19,6 +24,7 @@ final class AppStore: ObservableObject {
     let webDAVClient: WebDAVClient
     let developerContextProvider: DeveloperContextProvider
 
+    private var savedConfiguration: AppConfiguration
     private let developerRefreshQueue = DispatchQueue(label: "app.touchingbar.developer-refresh", qos: .utility)
     private let systemMetricsService = SystemMetricsService()
     private var refreshTimer: Timer?
@@ -36,12 +42,14 @@ final class AppStore: ObservableObject {
         webDAVClient = WebDAVClient()
         developerContextProvider = DeveloperContextProvider()
 
+        var loadedConfiguration = AppConfiguration()
         do {
-            configuration = try configurationStore.load()
+            loadedConfiguration = try configurationStore.load()
         } catch {
-            configuration = AppConfiguration()
             lastError = error.localizedDescription
         }
+        configuration = loadedConfiguration
+        savedConfiguration = loadedConfiguration
         runtime = contextStore.load()
 
         NSWorkspace.shared.notificationCenter.addObserver(
@@ -70,12 +78,30 @@ final class AppStore: ObservableObject {
         NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
 
-    func persist() {
+    func save() {
         do {
             try configurationStore.save(configuration)
+            savedConfiguration = configuration
+            hasUnsavedChanges = false
         } catch {
             lastError = error.localizedDescription
         }
+    }
+
+    func saveIfNeeded() {
+        guard hasUnsavedChanges else { return }
+        save()
+    }
+
+    func discardChanges() {
+        configuration = savedConfiguration
+        hasUnsavedChanges = false
+    }
+
+    /// Compatibility alias for callers that explicitly want to flush the
+    /// current configuration, such as backup import.
+    func persist() {
+        save()
     }
 
     func reloadRuntimeContext() {
@@ -97,7 +123,6 @@ final class AppStore: ObservableObject {
     func updateConfiguration(_ mutation: (inout AppConfiguration) -> Void) {
         mutation(&configuration)
         configuration.normalize()
-        persist()
     }
 
     func selectAdjacentPreset(offset: Int) {
@@ -164,7 +189,7 @@ final class AppStore: ObservableObject {
         guard let activeID = configuration.activePresetID,
               let index = configuration.presets.firstIndex(where: { $0.id == activeID }) else { return }
         mutation(&configuration.presets[index])
-        persist()
+        configuration.normalize()
     }
 
     func addItem(toPresetID presetID: UUID) {

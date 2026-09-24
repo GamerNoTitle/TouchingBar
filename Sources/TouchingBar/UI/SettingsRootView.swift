@@ -17,6 +17,34 @@ struct SettingsRootView: View {
         }
         .padding(16)
         .frame(minWidth: 760, minHeight: 520)
+        .overlay(alignment: .bottomTrailing) {
+            if store.hasUnsavedChanges {
+                HStack(spacing: 10) {
+                    Text("有未保存的更改")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Button("撤销") {
+                        store.discardChanges()
+                    }
+                    .buttonStyle(.bordered)
+                    Button("保存") {
+                        store.save()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut("s", modifiers: .command)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(.regularMaterial, in: Capsule())
+                .overlay {
+                    Capsule()
+                        .stroke(Color.primary.opacity(0.10), lineWidth: 1)
+                }
+                .padding(14)
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+        }
+        .animation(.easeInOut(duration: 0.16), value: store.hasUnsavedChanges)
     }
 }
 

@@ -802,7 +802,7 @@ private struct ActionItemEditor: View {
     var body: some View {
         Form {
             TextField("名称", text: binding(\.label))
-            Toggle("手动输入 SF Symbol", isOn: $useManualSymbolEntry)
+            Toggle("自定义图标", isOn: $useManualSymbolEntry)
                 .toggleStyle(.switch)
 
             if useManualSymbolEntry {
