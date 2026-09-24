@@ -6,6 +6,7 @@ public enum PresetKind: String, Codable, CaseIterable, Sendable {
     case developer
     case agents
     case messages
+    case metrics
     case music
     case custom
 }
@@ -16,6 +17,7 @@ public enum PresetContent: String, Codable, CaseIterable, Sendable {
     case agentContext
     case unreadMessages
     case nowPlaying
+    case components
 }
 
 public enum TouchBarItemWidth: String, Codable, CaseIterable, Sendable {

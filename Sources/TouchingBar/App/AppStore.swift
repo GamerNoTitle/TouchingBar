@@ -11,6 +11,7 @@ final class AppStore: ObservableObject {
     @Published var hookServerRunning = false
     @Published var activeApplicationName: String?
     @Published var touchBarStatus = "Touch Bar：等待启动"
+    @Published var systemMetrics = SystemMetricsSnapshot.empty
 
     let configurationStore: ConfigurationStore
     let backupService: BackupService
@@ -19,6 +20,7 @@ final class AppStore: ObservableObject {
     let developerContextProvider: DeveloperContextProvider
 
     private let developerRefreshQueue = DispatchQueue(label: "app.touchingbar.developer-refresh", qos: .utility)
+    private let systemMetricsService = SystemMetricsService()
     private var refreshTimer: Timer?
     private var lastDeveloperRefresh = Date.distantPast
     private var lastWorkingDirectory: String?
@@ -49,10 +51,14 @@ final class AppStore: ObservableObject {
             object: nil
         )
         startContextRefresh()
+        systemMetricsService.start { [weak self] snapshot in
+            self?.systemMetrics = snapshot
+        }
     }
 
     deinit {
         refreshTimer?.invalidate()
+        systemMetricsService.stop()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
 

@@ -7,6 +7,7 @@ public enum BuiltInPresets {
             systemFunctions(),
             developer(),
             agents(),
+            metrics(),
             messages(),
             music()
         ]
@@ -86,6 +87,25 @@ public enum BuiltInPresets {
                 .init(label: "工具", width: .regular, presentation: .context, contextKey: "tool"),
                 .init(label: "目录", width: .wide, presentation: .context, contextKey: "cwd"),
                 .init(label: "耗时", width: .regular, presentation: .context, contextKey: "duration")
+            ],
+            isBuiltIn: true
+        )
+    }
+
+    public static func metrics() -> TouchBarPreset {
+        TouchBarPreset(
+            name: "系统资源",
+            kind: .metrics,
+            content: .components,
+            items: [
+                .init(label: "CPU", width: .compact, presentation: .context, contextKey: "cpu"),
+                .init(label: "GPU", width: .compact, presentation: .context, contextKey: "gpu"),
+                .init(label: "内存", width: .compact, presentation: .context, contextKey: "memory"),
+                .init(label: "硬盘", width: .compact, presentation: .context, contextKey: "disk"),
+                .init(label: "温度", width: .compact, presentation: .context, contextKey: "cpuTemperature"),
+                .init(label: "风扇", width: .compact, presentation: .context, contextKey: "fanRPM"),
+                .init(label: "下载", width: .compact, presentation: .context, contextKey: "networkDownload"),
+                .init(label: "上传", width: .compact, presentation: .context, contextKey: "networkUpload")
             ],
             isBuiltIn: true
         )

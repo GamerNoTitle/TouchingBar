@@ -79,6 +79,7 @@ struct PresetsSettingsView: View {
         case .developer: return "chevron.left.forwardslash.chevron.right"
         case .agents: return "sparkles"
         case .messages: return "message.badge"
+        case .metrics: return "chart.bar.xaxis"
         case .music: return "music.note"
         case .custom: return "slider.horizontal.3"
         }
@@ -136,7 +137,7 @@ private struct PresetDetailView: View {
                     MessagesPresetDetail()
                 case .actions, .nowPlaying:
                     ActionItemsEditor(presetID: preset.id, selectedItemID: $selectedItemID)
-                case .developerContext, .agentContext:
+                case .developerContext, .agentContext, .components:
                     ContextItemsEditor(presetID: preset.id, selectedItemID: $selectedItemID)
                 }
             }
@@ -184,6 +185,7 @@ private struct PresetDetailView: View {
         case .agentContext: return "Agent 上下文"
         case .unreadMessages: return "未读消息"
         case .nowPlaying: return "正在播放与歌词"
+        case .components: return "自由组件"
         }
     }
 
@@ -194,6 +196,7 @@ private struct PresetDetailView: View {
         case .developer: return "开发者"
         case .agents: return "Agent"
         case .messages: return "消息"
+        case .metrics: return "系统资源"
         case .music: return "音乐"
         case .custom: return "自定义"
         }
@@ -485,9 +488,12 @@ private struct ContextItemsEditor: View {
                 List(selection: $selectedItemID) {
                     ForEach(preset.items) { item in
                         HStack {
+                            if let symbol = item.symbolName {
+                                Image(systemName: symbol)
+                            }
                             Text(item.label)
                             Spacer()
-                            Text(contextTitle(item.contextKey))
+                            Text(item.presentation == .context ? contextTitle(item.contextKey) : "动作按钮")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -498,7 +504,11 @@ private struct ContextItemsEditor: View {
 
                 if let selectedItemID,
                    let item = preset.items.first(where: { $0.id == selectedItemID }) {
-                    ContextItemEditor(presetID: presetID, itemID: item.id, item: item)
+                    if item.presentation == .context {
+                        ContextItemEditor(presetID: presetID, itemID: item.id, item: item)
+                    } else {
+                        ActionItemEditor(presetID: presetID, itemID: item.id, item: item)
+                    }
                 }
             }
         }
@@ -512,6 +522,12 @@ private struct ContextItemsEditor: View {
             "php": "PHP", "swift": "Swift", "docker": "Docker",
             "kubernetes": "Kubernetes", "terraform": "Terraform",
             "cmake": "CMake", "xcode": "Xcode",
+            "cpu": "CPU", "gpu": "GPU", "memory": "内存", "disk": "硬盘",
+            "cpuTemperature": "CPU 温度", "fanRPM": "风扇",
+            "networkDownload": "下载速度", "networkUpload": "上传速度",
+            "nowPlaying": "正在播放", "lyric": "当前歌词",
+            "unreadSummary": "未读汇总", "latestMessage": "最新消息",
+            "messageBadges": "消息角标",
             "provider": "Agent 厂商", "task": "任务", "status": "状态",
             "detail": "详情", "duration": "耗时", "sessions": "会话列表",
             "event": "事件", "tool": "工具", "cwd": "工作目录", "message": "消息"
@@ -550,6 +566,19 @@ private struct ContextItemEditor: View {
                 Text("工具").tag("tool")
                 Text("工作目录").tag("cwd")
                 Text("消息").tag("message")
+                Text("CPU").tag("cpu")
+                Text("GPU").tag("gpu")
+                Text("内存").tag("memory")
+                Text("硬盘").tag("disk")
+                Text("CPU 温度").tag("cpuTemperature")
+                Text("风扇").tag("fanRPM")
+                Text("下载速度").tag("networkDownload")
+                Text("上传速度").tag("networkUpload")
+                Text("正在播放").tag("nowPlaying")
+                Text("当前歌词").tag("lyric")
+                Text("未读汇总").tag("unreadSummary")
+                Text("最新消息").tag("latestMessage")
+                Text("消息角标").tag("messageBadges")
                 Text("Agent 厂商").tag("provider")
                 Text("任务").tag("task")
                 Text("状态").tag("status")

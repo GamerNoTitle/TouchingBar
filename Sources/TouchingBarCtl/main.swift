@@ -1,5 +1,6 @@
 import Foundation
 import TouchingBarCore
+import TouchingBarSystemMetrics
 
 private let baseURL = URL(string: "http://127.0.0.1:\(HookServer.defaultPort)")!
 private let encoder: JSONEncoder = {
@@ -78,6 +79,16 @@ private enum TouchingBarCtlCommand {
 
         case "shell-hook-status":
             print(ShellHookInstaller().isInstalled() ? "installed" : "not-installed")
+
+        case "metrics":
+            let metrics = TBSystemMetricsSample()
+            print(String(format: "CPU %.1f%%", metrics.cpuUsagePercent))
+            print(String(format: "GPU %.1f%%", metrics.gpuUsagePercent))
+            print(String(format: "MEM %.1f%%", metrics.memoryUsagePercent))
+            print(String(format: "DISK %.1f%%", metrics.diskUsagePercent))
+            print(String(format: "TEMP %.1f°C", metrics.cpuTemperatureCelsius))
+            print(String(format: "FAN %.0f RPM", metrics.fanRPM))
+            print(String(format: "NET ↓ %.1f KB/s ↑ %.1f KB/s", metrics.networkDownloadBytesPerSecond / 1024, metrics.networkUploadBytesPerSecond / 1024))
 
         case "lyrics":
             guard let title = options["title"], !title.isEmpty else {
@@ -256,6 +267,7 @@ private enum TouchingBarCtlCommand {
 
         用法：
           TouchingBarCtl health
+          TouchingBarCtl metrics
           TouchingBarCtl agent --provider codex --status running --task "Build app"
           TouchingBarCtl developer [--directory /path] [--terminal "VS Code"]
           TouchingBarCtl install-shell-hook [--shell zsh] [--ctl /path/to/TouchingBarCtl]

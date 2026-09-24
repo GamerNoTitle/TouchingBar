@@ -28,8 +28,10 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private var actionConfigurations: [String: TouchBarItemConfiguration] = [:]
     private var nowPlayingViews: [NowPlayingTouchBarView] = []
     private var messageViews: [MessagesTouchBarView] = []
+    private var latestNowPlaying: NowPlayingSnapshot?
     private var badgeCounts: [ApplicationUnreadCount] = []
     private var isStarted = false
+    private var cancellables: Set<AnyCancellable> = []
     private var expectedItemCount = 0
     private var lastRebuildSignature: String?
     private var didTriggerDashboardSwipe = false
@@ -47,6 +49,10 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         runtimeCancellable = store.$runtime
             .receive(on: RunLoop.main)
             .sink { [weak self] snapshot in self?.updateRuntime(snapshot) }
+        store.$systemMetrics
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateContextValues() }
+            .store(in: &cancellables)
         activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil,
@@ -73,7 +79,9 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         nowPlayingService.setLyricsOffset(store.configuration.effectiveLyricsOffset)
         nowPlayingService.start()
         nowPlayingService.observe { [weak self] snapshot in
+            self?.latestNowPlaying = snapshot
             self?.nowPlayingViews.forEach { $0.update(snapshot) }
+            self?.updateContextValues()
         }
         badgeTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refreshDockBadges() }
@@ -268,7 +276,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             let nowPlaying = NowPlayingTouchBarView(width: TouchBarLayoutMetrics.lyricsWidth)
             nowPlayingViews.append(nowPlaying)
             dashboard.addArrangedSubview(nowPlaying)
-        case .developerContext, .agentContext:
+        case .developerContext, .agentContext, .components:
             addContextViews(from: preset, to: dashboard)
         case .unreadMessages:
             let messages = MessagesTouchBarView(width: 970)
@@ -277,7 +285,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             dashboard.addArrangedSubview(messages)
         }
 
-        if preset.content != .developerContext && preset.content != .agentContext {
+        if preset.content != .developerContext && preset.content != .agentContext && preset.content != .components {
             let swipe = NSPanGestureRecognizer(target: self, action: #selector(dashboardPan(_:)))
             dashboard.addGestureRecognizer(swipe)
         }
@@ -305,37 +313,47 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         width: CGFloat
     ) {
         for configuration in preset.items {
-            let image = configuration.symbolName.flatMap {
-                NSImage(systemSymbolName: $0, accessibilityDescription: configuration.label)
-            }
-            image?.isTemplate = true
-            let iconOnly = preset.kind == .systemFunctions && image != nil
-            let button = NSButton(
-                title: iconOnly ? "" : configuration.label,
-                image: image ?? NSImage(),
-                target: self,
-                action: #selector(actionButtonPressed(_:))
+            dashboard.addArrangedSubview(
+                makeActionButtonView(configuration, preset: preset, width: width)
             )
-            button.identifier = NSUserInterfaceItemIdentifier(configuration.id.uuidString)
-            button.imagePosition = image == nil
-                ? NSControl.ImagePosition.noImage
-                : (iconOnly ? .imageOnly : .imageLeading)
-            button.bezelColor = NSColor.controlColor
-            button.toolTip = configuration.label
-            actionConfigurations[button.identifier!.rawValue] = configuration
-
-            let wrapper = NSView(frame: NSRect(x: 0, y: 0, width: width, height: 30))
-            button.translatesAutoresizingMaskIntoConstraints = false
-            wrapper.addSubview(button)
-            NSLayoutConstraint.activate([
-                wrapper.widthAnchor.constraint(greaterThanOrEqualToConstant: width),
-                button.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor),
-                button.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor),
-                button.topAnchor.constraint(equalTo: wrapper.topAnchor),
-                button.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor)
-            ])
-            dashboard.addArrangedSubview(wrapper)
         }
+    }
+
+    private func makeActionButtonView(
+        _ configuration: TouchBarItemConfiguration,
+        preset: TouchBarPreset,
+        width: CGFloat
+    ) -> NSView {
+        let image = configuration.symbolName.flatMap {
+            NSImage(systemSymbolName: $0, accessibilityDescription: configuration.label)
+        }
+        image?.isTemplate = true
+        let iconOnly = preset.kind == .systemFunctions && image != nil
+        let button = NSButton(
+            title: iconOnly ? "" : configuration.label,
+            image: image ?? NSImage(),
+            target: self,
+            action: #selector(actionButtonPressed(_:))
+        )
+        button.identifier = NSUserInterfaceItemIdentifier(configuration.id.uuidString)
+        button.imagePosition = image == nil
+            ? NSControl.ImagePosition.noImage
+            : (iconOnly ? .imageOnly : .imageLeading)
+        button.bezelColor = NSColor.controlColor
+        button.toolTip = configuration.label
+        actionConfigurations[button.identifier!.rawValue] = configuration
+
+        let wrapper = NSView(frame: NSRect(x: 0, y: 0, width: width, height: 30))
+        button.translatesAutoresizingMaskIntoConstraints = false
+        wrapper.addSubview(button)
+        NSLayoutConstraint.activate([
+            wrapper.widthAnchor.constraint(greaterThanOrEqualToConstant: width),
+            button.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor),
+            button.trailingAnchor.constraint(equalTo: wrapper.trailingAnchor),
+            button.topAnchor.constraint(equalTo: wrapper.topAnchor),
+            button.bottomAnchor.constraint(equalTo: wrapper.bottomAnchor)
+        ])
+        return wrapper
     }
 
     private func addContextViews(from preset: TouchBarPreset, to dashboard: NSStackView) {
@@ -383,6 +401,13 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             case .wide: return 420
             }
         }
+        if preset.kind == .metrics {
+            switch configuration.width {
+            case .compact: return 120
+            case .regular: return 160
+            case .wide: return 260
+            }
+        }
         switch configuration.width {
         case .compact: return 120
         case .regular: return 220
@@ -418,12 +443,43 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     private func updateRuntime(_ snapshot: RuntimeContextSnapshot) {
-        for (id, view) in contextViews {
-            guard let configuration = contextConfigurations[id] else { continue }
-            view.update(value: snapshot.value(for: configuration.contextKey ?? "") ?? "—")
-        }
+        updateContextValues()
         if let latest = snapshot.messages.first {
             messageViews.forEach { $0.update(badges: badgeCounts, latestMessage: latest) }
+        }
+    }
+
+    private func updateContextValues() {
+        for (id, view) in contextViews {
+            guard let configuration = contextConfigurations[id] else { continue }
+            view.update(value: contextValue(for: configuration.contextKey ?? "") ?? "—")
+        }
+    }
+
+    private func contextValue(for key: String) -> String? {
+        if let value = store.runtime.value(for: key) {
+            return value
+        }
+        if let value = store.systemMetrics.value(for: key) {
+            return value
+        }
+        switch key {
+        case "nowPlaying":
+            return latestNowPlaying?.compactTitle
+        case "lyric":
+            return latestNowPlaying?.currentLyricLine
+        case "unreadSummary":
+            let total = store.runtime.messages.reduce(0) { $0 + $1.unreadCount }
+            return total > 0 ? "\(total) 条未读" : "无未读"
+        case "latestMessage":
+            guard let message = store.runtime.messages.first else { return "暂无消息" }
+            let sender = message.sender.map { "\($0): " } ?? ""
+            return "\(message.application) · \(sender)\(message.body)"
+        case "messageBadges":
+            guard !badgeCounts.isEmpty else { return "无未读" }
+            return badgeCounts.map { "\($0.applicationName) \($0.count)" }.joined(separator: " · ")
+        default:
+            return nil
         }
     }
 

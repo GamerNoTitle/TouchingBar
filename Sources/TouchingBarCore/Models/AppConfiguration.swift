@@ -104,11 +104,18 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         if presets.isEmpty {
             presets = BuiltInPresets.make()
         }
+        ensureBuiltInPresets()
         migrateDeveloperPresetToolchains()
         migrateSystemFunctionPreset()
         migrateAgentPresetContext()
         if activePresetID == nil || !presets.contains(where: { $0.id == activePresetID }) {
             activePresetID = presets.first?.id
+        }
+    }
+
+    private mutating func ensureBuiltInPresets() {
+        for builtIn in BuiltInPresets.make() where !presets.contains(where: { $0.kind == builtIn.kind }) {
+            presets.append(builtIn)
         }
     }
 

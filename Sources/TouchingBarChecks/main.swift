@@ -8,6 +8,7 @@ struct TouchingBarChecks {
         try checkBuiltInPresets()
         try checkBackupRoundTrip()
         try checkConfigurationNormalization()
+        try checkMetricsPresetMigration()
         try checkSystemFunctionMigration()
         try checkRuntimeFormatting()
         try checkTouchBarLayoutBudget()
@@ -24,7 +25,7 @@ struct TouchingBarChecks {
     private static func checkBuiltInPresets() throws {
         let presets = BuiltInPresets.make()
         try expect(presets.map(\.kind) == [
-            .functionKeys, .systemFunctions, .developer, .agents, .messages, .music
+            .functionKeys, .systemFunctions, .developer, .agents, .metrics, .messages, .music
         ], "all built-in presets are present")
 
         let functionKeys = BuiltInPresets.functionKeys()
@@ -74,6 +75,16 @@ struct TouchingBarChecks {
         let loaded = try store.load()
         try expect(!loaded.presets.isEmpty, "empty configurations are normalized")
         try expect(loaded.activePresetID == loaded.presets.first?.id, "normalized configuration selects a preset")
+    }
+
+    private static func checkMetricsPresetMigration() throws {
+        var configuration = AppConfiguration()
+        configuration.presets.removeAll { $0.kind == .metrics }
+        configuration.normalize()
+        try expect(configuration.presets.contains { $0.kind == .metrics }, "system metrics preset is migrated")
+        let metrics = configuration.presets.first { $0.kind == .metrics }
+        let keys = Set(metrics?.items.compactMap(\.contextKey) ?? [])
+        try expect(keys.isSuperset(of: ["cpu", "gpu", "memory", "disk", "cpuTemperature", "fanRPM", "networkDownload", "networkUpload"]), "metrics preset contains all resource components")
     }
 
     private static func checkSystemFunctionMigration() throws {

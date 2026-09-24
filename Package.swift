@@ -24,15 +24,19 @@ let package = Package(
             publicHeadersPath: "include"
         ),
         .target(
+            name: "TouchingBarSystemMetrics",
+            publicHeadersPath: "include"
+        ),
+        .target(
             name: "TouchingBarCore"
         ),
         .executableTarget(
             name: "TouchingBar",
-            dependencies: ["TouchingBarCore", "TouchingBarDFR", "TouchingBarMediaRemote"]
+            dependencies: ["TouchingBarCore", "TouchingBarDFR", "TouchingBarMediaRemote", "TouchingBarSystemMetrics"]
         ),
         .executableTarget(
             name: "TouchingBarCtl",
-            dependencies: ["TouchingBarCore"]
+            dependencies: ["TouchingBarCore", "TouchingBarSystemMetrics"]
         ),
         .executableTarget(
             name: "TouchingBarChecks",
