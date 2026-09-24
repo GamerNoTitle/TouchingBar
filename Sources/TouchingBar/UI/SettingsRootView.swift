@@ -1,3 +1,4 @@
+import ApplicationServices
 import SwiftUI
 import TouchingBarCore
 
@@ -54,6 +55,19 @@ struct SettingsRootView: View {
 struct GeneralSettingsView: View {
     @EnvironmentObject private var store: AppStore
     @State private var accessibilityTrusted = false
+
+    private func requestAccessibilityPermission() {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        AXIsProcessTrustedWithOptions(options)
+        accessibilityTrusted = AXIsProcessTrusted()
+    }
+
+    private func openAccessibilitySettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else {
+            return
+        }
+        NSWorkspace.shared.open(url)
+    }
 
     private var menuBarBinding: Binding<Bool> {
         Binding(
@@ -191,11 +205,14 @@ struct GeneralSettingsView: View {
                     .foregroundStyle(accessibilityTrusted ? .green : .orange)
                     Spacer()
                     Button(accessibilityTrusted ? "打开系统设置" : "请求权限") {
-                        DockBadgeReader().requestAccessibilityPermission()
-                        accessibilityTrusted = DockBadgeReader().isAccessibilityTrusted
+                        if accessibilityTrusted {
+                            openAccessibilitySettings()
+                        } else {
+                            requestAccessibilityPermission()
+                        }
                     }
                 }
-                Text("读取 Dock 未读角标、模拟功能键和部分系统快捷键需要辅助功能权限。授权后请重新启动 TouchingBar。")
+                Text("只有 F1–F12 键码模拟、自定义键盘快捷键、听写和专注模式等 AX 操作需要辅助功能权限。系统资源、音乐媒体、亮度、锁屏和宠物不需要。未读消息和 Agent 已移除，因此不再需要为它们授权。")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } header: {
@@ -214,7 +231,7 @@ struct GeneralSettingsView: View {
         }
         .formStyle(.grouped)
         .onAppear {
-            accessibilityTrusted = DockBadgeReader().isAccessibilityTrusted
+            accessibilityTrusted = AXIsProcessTrusted()
         }
     }
 }
