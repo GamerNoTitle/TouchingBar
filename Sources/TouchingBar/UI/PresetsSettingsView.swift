@@ -823,6 +823,8 @@ private struct WidthEditor: View {
     let presetID: UUID
     let itemID: UUID
     let item: TouchBarItemConfiguration
+    @State private var customWidthText = ""
+    @FocusState private var customWidthFocused: Bool
 
     var body: some View {
         HStack(spacing: 8) {
@@ -834,12 +836,29 @@ private struct WidthEditor: View {
             }
 
             if selectedWidth == .custom {
-                TextField("", text: customWidthTextBinding)
+                TextField("", text: $customWidthText)
                     .frame(width: 72)
+                    .focused($customWidthFocused)
+                    .onSubmit { commitCustomWidthText() }
+                    .onChange(of: customWidthText) { value in
+                        applyCustomWidthTextIfValid(value)
+                    }
                 Text("pt")
                     .foregroundStyle(.secondary)
                 Slider(value: customWidthBinding, in: 40...1200, step: 1)
                     .frame(minWidth: 180)
+            }
+        }
+        .onAppear { syncCustomWidthText() }
+        .onChange(of: selectedWidth) { _ in syncCustomWidthText() }
+        .onChange(of: currentItem?.customWidth) { _ in
+            if !customWidthFocused {
+                syncCustomWidthText()
+            }
+        }
+        .onChange(of: customWidthFocused) { focused in
+            if !focused {
+                commitCustomWidthText()
             }
         }
     }
@@ -876,24 +895,40 @@ private struct WidthEditor: View {
                 updated.width = .custom
                 updated.customWidth = clamped(value)
                 store.updateItem(presetID: presetID, item: updated)
+                customWidthText = String(format: "%.0f", updated.customWidth ?? value)
             }
         )
     }
 
-    private var customWidthTextBinding: Binding<String> {
-        Binding(
-            get: {
-                let value = currentItem?.customWidth ?? suggestedWidth(for: currentItem ?? item)
-                return String(format: "%.0f", clamped(value))
-            },
-            set: { text in
-                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty, let value = Double(trimmed), var updated = currentItem else { return }
-                updated.width = .custom
-                updated.customWidth = clamped(value)
-                store.updateItem(presetID: presetID, item: updated)
-            }
-        )
+    private func syncCustomWidthText() {
+        let value = currentItem?.customWidth ?? suggestedWidth(for: currentItem ?? item)
+        customWidthText = String(format: "%.0f", clamped(value))
+    }
+
+    private func applyCustomWidthTextIfValid(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let value = Double(trimmed),
+              value >= 40,
+              value <= 1200,
+              var updated = currentItem else {
+            return
+        }
+        updated.width = .custom
+        updated.customWidth = value
+        store.updateItem(presetID: presetID, item: updated)
+    }
+
+    private func commitCustomWidthText() {
+        let trimmed = customWidthText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let value = Double(trimmed), var updated = currentItem else {
+            syncCustomWidthText()
+            return
+        }
+        updated.width = .custom
+        updated.customWidth = clamped(value)
+        store.updateItem(presetID: presetID, item: updated)
+        customWidthText = String(format: "%.0f", updated.customWidth ?? value)
     }
 
     private func suggestedWidth(for item: TouchBarItemConfiguration) -> Double {
