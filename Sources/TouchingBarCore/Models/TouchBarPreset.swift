@@ -41,6 +41,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
     public var customWidth: Double?
     public var isHidden: Bool
     public var showsLabel: Bool
+    public var dualLineLyrics: Bool
     public var presentation: TouchBarItemPresentation
     public var action: ActionSpec
     public var contextKey: String?
@@ -53,6 +54,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         customWidth: Double? = nil,
         isHidden: Bool = false,
         showsLabel: Bool = true,
+        dualLineLyrics: Bool = false,
         presentation: TouchBarItemPresentation = .button,
         action: ActionSpec = .none,
         contextKey: String? = nil
@@ -64,6 +66,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         self.customWidth = customWidth
         self.isHidden = isHidden
         self.showsLabel = showsLabel
+        self.dualLineLyrics = dualLineLyrics
         self.presentation = presentation
         self.action = action
         self.contextKey = contextKey
@@ -77,6 +80,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         case customWidth
         case isHidden
         case showsLabel
+        case dualLineLyrics
         case presentation
         case action
         case contextKey
@@ -91,6 +95,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         customWidth = try container.decodeIfPresent(Double.self, forKey: .customWidth)
         isHidden = try container.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
         showsLabel = try container.decodeIfPresent(Bool.self, forKey: .showsLabel) ?? true
+        dualLineLyrics = try container.decodeIfPresent(Bool.self, forKey: .dualLineLyrics) ?? false
         presentation = try container.decodeIfPresent(TouchBarItemPresentation.self, forKey: .presentation) ?? .button
         action = try container.decodeIfPresent(ActionSpec.self, forKey: .action) ?? .none
         contextKey = try container.decodeIfPresent(String.self, forKey: .contextKey)
@@ -105,6 +110,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         try container.encodeIfPresent(customWidth, forKey: .customWidth)
         try container.encode(isHidden, forKey: .isHidden)
         try container.encode(showsLabel, forKey: .showsLabel)
+        try container.encode(dualLineLyrics, forKey: .dualLineLyrics)
         try container.encode(presentation, forKey: .presentation)
         try container.encode(action, forKey: .action)
         try container.encodeIfPresent(contextKey, forKey: .contextKey)

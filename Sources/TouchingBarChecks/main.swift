@@ -89,6 +89,12 @@ struct TouchingBarChecks {
         let custom = customConfiguration.presets.first { $0.kind == .custom }
         try expect(custom?.content == .components, "custom presets migrate to free components")
 
+        let bilingualDocument = LyricsDocument(lines: [
+            LyricsDocumentLine(time: 1, text: "原文", translation: "Translation")
+        ])
+        try expect(bilingualDocument.lines.first?.translation == "Translation", "bilingual lyric translation is preserved")
+        try expect(bilingualDocument.text.contains("原文 · Translation"), "bilingual lyric text remains available")
+
         let legacyItemJSON = Data(
             #"{"id":"00000000-0000-0000-0000-000000000001","label":"Legacy","width":"regular","presentation":"button","action":{"kind":"none"}}"#.utf8
         )

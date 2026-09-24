@@ -45,6 +45,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private var presentationTimer: Timer?
     private var activationObserver: NSObjectProtocol?
     private var contextViews: [UUID: ContextTouchBarView] = [:]
+    private var dualLineLyricViews: [UUID: DualLineLyricsTouchBarView] = [:]
     private var contextConfigurations: [UUID: TouchBarItemConfiguration] = [:]
     private var actionConfigurations: [String: TouchBarItemConfiguration] = [:]
     private var nowPlayingViews: [NowPlayingTouchBarView] = []
@@ -222,6 +223,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
         actionConfigurations.removeAll()
         contextViews.removeAll()
+        dualLineLyricViews.removeAll()
         contextConfigurations.removeAll()
         nowPlayingViews.removeAll()
         messageViews.removeAll()
@@ -454,7 +456,16 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
         for (index, configuration) in visibleItems.enumerated() {
             let width = widths[index]
-            if configuration.presentation == .context {
+            if configuration.contextKey == "lyric", configuration.dualLineLyrics {
+                let view = DualLineLyricsTouchBarView(width: width)
+                view.update(
+                    pair: latestNowPlaying?.currentLyricPair,
+                    progress: latestNowPlaying?.currentLyricProgress
+                )
+                dualLineLyricViews[configuration.id] = view
+                contextConfigurations[configuration.id] = configuration
+                scrollView.addContentView(view, width: width)
+            } else if configuration.presentation == .context {
                 let view = ContextTouchBarView(
                     title: configuration.label,
                     width: width,
@@ -624,6 +635,13 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             guard let configuration = contextConfigurations[id] else { continue }
             updateContextView(view, key: configuration.contextKey ?? "")
         }
+        for (id, view) in dualLineLyricViews {
+            guard contextConfigurations[id] != nil else { continue }
+            view.update(
+                pair: latestNowPlaying?.currentLyricPair,
+                progress: latestNowPlaying?.currentLyricProgress
+            )
+        }
     }
 
     private func updateContextView(_ view: ContextTouchBarView, key: String) {
@@ -701,6 +719,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 item.customWidth.map { String(format: "%.2f", $0) } ?? "",
                 item.isHidden ? "hidden" : "visible",
                 item.showsLabel ? "label" : "no-label",
+                item.dualLineLyrics ? "dual-line" : "single-line",
                 item.presentation.rawValue,
                 item.contextKey ?? "",
                 item.action.kind.rawValue,
@@ -1024,6 +1043,62 @@ private final class MarqueeTextField: NSView {
     private var textWidth: CGFloat {
         guard !text.isEmpty else { return 0 }
         return ceil((text as NSString).size(withAttributes: [.font: font]).width)
+    }
+}
+
+private final class DualLineLyricsTouchBarView: NSView {
+    private let originalLabel = MarqueeTextField()
+    private let translationLabel = MarqueeTextField()
+    private let preferredWidth: CGFloat
+
+    init(width: CGFloat) {
+        preferredWidth = width
+        super.init(frame: NSRect(x: 0, y: 0, width: width, height: 30))
+
+        originalLabel.font = .systemFont(ofSize: 10, weight: .semibold)
+        originalLabel.textColor = .labelColor
+        translationLabel.font = .systemFont(ofSize: 9)
+        translationLabel.textColor = .secondaryLabelColor
+
+        let stack = NSStackView(views: [originalLabel, translationLabel])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.distribution = .fillEqually
+        stack.spacing = 0
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 5),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -5),
+            stack.topAnchor.constraint(equalTo: topAnchor, constant: 1),
+            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -1)
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: preferredWidth, height: 30)
+    }
+
+    func update(
+        pair: (original: String, translation: String?)?,
+        progress: Double?
+    ) {
+        let original = pair?.original ?? ""
+        let translation = pair?.translation ?? ""
+        originalLabel.updateText(original, progress: progress)
+        translationLabel.isHidden = translation.isEmpty
+        translationLabel.updateText(translation, progress: progress)
+        if ProcessInfo.processInfo.environment["TOUCHINGBAR_DEBUG"] == "1" {
+            NSLog(
+                "TouchBar dual-line lyric original=%@ translation=%@",
+                original,
+                translation.isEmpty ? "none" : translation
+            )
+        }
     }
 }
 

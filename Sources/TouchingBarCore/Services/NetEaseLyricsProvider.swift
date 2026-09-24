@@ -1,5 +1,47 @@
 import Foundation
 
+public struct LyricsDocumentLine: Equatable, Sendable {
+    public let time: TimeInterval
+    public let text: String
+    public let translation: String?
+
+    public init(time: TimeInterval, text: String, translation: String? = nil) {
+        self.time = time
+        self.text = text
+        self.translation = translation
+    }
+
+    public var mergedText: String {
+        [text, translation]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+    }
+}
+
+public struct LyricsDocument: Equatable, Sendable {
+    public let lines: [LyricsDocumentLine]
+
+    public init(lines: [LyricsDocumentLine]) {
+        self.lines = lines
+    }
+
+    public var text: String {
+        lines.map { line in
+            let minutes = Int(line.time) / 60
+            let seconds = line.time.truncatingRemainder(dividingBy: 60)
+            let secondsText = String(
+                format: "%.2f",
+                locale: Locale(identifier: "en_US_POSIX"),
+                seconds
+            )
+            let paddedSeconds = seconds < 10 ? "0" + secondsText : secondsText
+            return String(format: "[%02d:%@]%@", minutes, paddedSeconds, line.mergedText)
+        }
+        .joined(separator: "\n")
+    }
+}
+
 public final class NetEaseLyricsProvider: @unchecked Sendable {
     private struct Candidate {
         var id: Int
@@ -10,7 +52,7 @@ public final class NetEaseLyricsProvider: @unchecked Sendable {
     }
 
     private let lock = NSLock()
-    private var cache: [String: String] = [:]
+    private var cache: [String: LyricsDocument] = [:]
     private var failedUntil: [String: Date] = [:]
     private let session: URLSession
 
@@ -31,6 +73,15 @@ public final class NetEaseLyricsProvider: @unchecked Sendable {
         album: String,
         duration: TimeInterval?
     ) -> String? {
+        lyricDocument(title: title, artist: artist, album: album, duration: duration)?.text
+    }
+
+    public func lyricDocument(
+        title: String,
+        artist: String,
+        album: String,
+        duration: TimeInterval?
+    ) -> LyricsDocument? {
         let key = [title.lowercased(), artist.lowercased(), album.lowercased()].joined(separator: "|")
         lock.lock()
         if let cached = cache[key] {
@@ -131,7 +182,7 @@ public final class NetEaseLyricsProvider: @unchecked Sendable {
         return value
     }
 
-    private func fetchLyrics(songID: Int) -> String? {
+    private func fetchLyrics(songID: Int) -> LyricsDocument? {
         guard let url = URL(string: "https://music.163.com/api/song/lyric?id=\(songID)&lv=-1&kv=-1&tv=-1&rv=-1"),
               let data = request(url),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -143,31 +194,25 @@ public final class NetEaseLyricsProvider: @unchecked Sendable {
               !lyric.isEmpty else { return nil }
         let translation = ((root["tlyric"] as? [String: Any])?["lyric"] as? String)
             ?? ((root["romalrc"] as? [String: Any])?["lyric"] as? String)
-        return merge(lyric: lyric, translation: translation)
+        return makeDocument(lyric: lyric, translation: translation)
     }
 
-    private func merge(lyric: String, translation: String?) -> String {
+    private func makeDocument(lyric: String, translation: String?) -> LyricsDocument {
         let translations = parseLRC(translation ?? "")
-        let lines = lyric.components(separatedBy: .newlines).compactMap { line -> String? in
+        let lines = lyric.components(separatedBy: .newlines).compactMap { line -> LyricsDocumentLine? in
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             guard let parsed = parseTimestampedLine(trimmed) else { return nil }
             guard !isCreditLine(parsed.text) else { return nil }
-            let translated = translations[parsed.time]?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let text = [parsed.text, translated]
-                .compactMap { $0 }
-                .filter { !$0.isEmpty }
-                .joined(separator: " · ")
-            let minutes = Int(parsed.time) / 60
-            let seconds = parsed.time.truncatingRemainder(dividingBy: 60)
-            let secondsText = String(
-                format: "%.2f",
-                locale: Locale(identifier: "en_US_POSIX"),
-                seconds
+            let translated = translations[parsed.time]?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return LyricsDocumentLine(
+                time: parsed.time,
+                text: parsed.text,
+                translation: translated?.isEmpty == true ? nil : translated
             )
-            let paddedSeconds = seconds < 10 ? "0" + secondsText : secondsText
-            return String(format: "[%02d:%@]%@", minutes, paddedSeconds, text)
         }
-        return lines.joined(separator: "\n")
+        .sorted { $0.time < $1.time }
+        return LyricsDocument(lines: lines)
     }
 
     private func parseLRC(_ text: String) -> [TimeInterval: String] {

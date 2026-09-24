@@ -1346,8 +1346,18 @@ private struct ContextItemEditor: View {
                 Text("耗时").tag("duration")
             }
             WidthEditor(presetID: presetID, itemID: itemID, item: item)
-            Toggle("显示标签", isOn: showsLabelBinding)
-                .toggleStyle(.switch)
+            if (currentItem?.contextKey ?? item.contextKey) == "lyric" {
+                Toggle("双行歌词", isOn: dualLineLyricsBinding)
+                    .toggleStyle(.switch)
+            }
+            if currentItem?.dualLineLyrics == true {
+                Text("双行歌词开启时会自动隐藏 Label，上方显示原文，下方显示翻译。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Toggle("显示标签", isOn: showsLabelBinding)
+                    .toggleStyle(.switch)
+            }
             Toggle("隐藏组件", isOn: hiddenBinding)
                 .toggleStyle(.switch)
             HStack {
@@ -1368,6 +1378,20 @@ private struct ContextItemEditor: View {
         store.configuration.presets
             .first(where: { $0.id == presetID })?
             .items.first(where: { $0.id == itemID })
+    }
+
+    private var dualLineLyricsBinding: Binding<Bool> {
+        Binding(
+            get: { currentItem?.dualLineLyrics ?? item.dualLineLyrics },
+            set: { value in
+                guard var updated = currentItem else { return }
+                updated.dualLineLyrics = value
+                if value {
+                    updated.showsLabel = false
+                }
+                store.updateItem(presetID: presetID, item: updated)
+            }
+        )
     }
 
     private var showsLabelBinding: Binding<Bool> {

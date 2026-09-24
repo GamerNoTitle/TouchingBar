@@ -7,6 +7,7 @@ struct NowPlayingSnapshot: Equatable {
     var artist: String
     var album: String
     var lyrics: String?
+    var lyricDocument: LyricsDocument? = nil
     var player: String?
     var position: TimeInterval
     var lyricsOffset: TimeInterval = 0
@@ -27,34 +28,56 @@ struct NowPlayingSnapshot: Equatable {
         return title
     }
 
-    var currentLyricLine: String? {
-        guard let lyrics, !lyrics.isEmpty else { return nil }
+    var currentLyricPair: (original: String, translation: String?)? {
         let effectivePosition = position - lyricsOffset
-        if let timedLine = timedLyrics(from: lyrics).last(where: { $0.time <= effectivePosition + 0.35 }) {
-            return timedLine.text
+        if let lyricDocument, !lyricDocument.lines.isEmpty {
+            if let line = lyricDocument.lines.last(where: { $0.time <= effectivePosition + 0.35 }) {
+                return (line.text, line.translation)
+            }
+            if let first = lyricDocument.lines.first {
+                return (first.text, first.translation)
+            }
         }
-        return lyrics
+        guard let lyrics, !lyrics.isEmpty else { return nil }
+        if let timedLine = timedLyrics(from: lyrics).last(where: { $0.time <= effectivePosition + 0.35 }) {
+            return (timedLine.text, nil)
+        }
+        guard let plain = lyrics
             .components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .first(where: { !$0.isEmpty && !$0.hasPrefix("[") })
+            .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) })
+            .first(where: { !$0.isEmpty && !$0.hasPrefix("[") }) else {
+            return nil
+        }
+        return (plain, nil)
+    }
+
+    var currentLyricLine: String? {
+        guard let pair = currentLyricPair else { return nil }
+        return [pair.original, pair.translation]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
     }
 
     var currentLyricProgress: Double? {
-        guard let lyrics, !lyrics.isEmpty else { return nil }
         let effectivePosition = position - lyricsOffset
+        if let lyricDocument, !lyricDocument.lines.isEmpty {
+            let lines = lyricDocument.lines
+            guard let index = lines.lastIndex(where: { $0.time <= effectivePosition + 0.35 }) else {
+                return nil
+            }
+            let start = lines[index].time
+            let end = index + 1 < lines.count ? lines[index + 1].time : start + 4
+            return min(1, max(0, (effectivePosition - start) / max(0.5, end - start)))
+        }
+        guard let lyrics, !lyrics.isEmpty else { return nil }
         let lines = timedLyrics(from: lyrics)
         guard let index = lines.lastIndex(where: { $0.time <= effectivePosition + 0.35 }) else {
             return nil
         }
         let start = lines[index].time
-        let end: TimeInterval
-        if index + 1 < lines.count {
-            end = lines[index + 1].time
-        } else {
-            end = start + 4
-        }
-        let duration = max(0.5, end - start)
-        return min(1, max(0, (effectivePosition - start) / duration))
+        let end = index + 1 < lines.count ? lines[index + 1].time : start + 4
+        return min(1, max(0, (effectivePosition - start) / max(0.5, end - start)))
     }
 
     private func timedLyrics(from lyrics: String) -> [(time: TimeInterval, text: String)] {
@@ -148,7 +171,7 @@ final class NowPlayingService {
     private func readSnapshot() -> NowPlayingSnapshot {
         if let remote = mediaRemoteClient.fetch(),
            remote.bundleIdentifier == "com.netease.163music" {
-            let lyrics = netEaseLyricsProvider.lyrics(
+            let lyricDocument = netEaseLyricsProvider.lyricDocument(
                 title: remote.title,
                 artist: remote.artist,
                 album: remote.album,
@@ -158,7 +181,8 @@ final class NowPlayingService {
                 title: remote.title,
                 artist: remote.artist,
                 album: remote.album,
-                lyrics: lyrics,
+                lyrics: lyricDocument?.text,
+                lyricDocument: lyricDocument,
                 player: "网易云音乐",
                 position: remote.position
             )
