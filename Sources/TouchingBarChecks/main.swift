@@ -9,6 +9,7 @@ struct TouchingBarChecks {
         try checkBackupRoundTrip()
         try checkConfigurationNormalization()
         try checkMetricsPresetMigration()
+        try checkMetricsHistoryRange()
         try checkSystemFunctionMigration()
         try checkRuntimeFormatting()
         try checkTouchBarLayoutBudget()
@@ -85,6 +86,14 @@ struct TouchingBarChecks {
         let metrics = configuration.presets.first { $0.kind == .metrics }
         let keys = Set(metrics?.items.compactMap(\.contextKey) ?? [])
         try expect(keys.isSuperset(of: ["cpu", "gpu", "memory", "disk", "cpuTemperature", "fanRPM", "networkDownload", "networkUpload"]), "metrics preset contains all resource components")
+    }
+
+    private static func checkMetricsHistoryRange() throws {
+        var configuration = AppConfiguration()
+        configuration.metricsHistorySeconds = 600
+        try expect(configuration.effectiveMetricsHistorySeconds == 600, "metrics history accepts ten minutes")
+        configuration.metricsHistorySeconds = 77
+        try expect(configuration.effectiveMetricsHistorySeconds == 30, "invalid metrics history falls back to thirty seconds")
     }
 
     private static func checkSystemFunctionMigration() throws {

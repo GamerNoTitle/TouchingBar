@@ -677,11 +677,11 @@ private final class ContextTouchBarView: NSView {
         super.init(frame: NSRect(x: 0, y: 0, width: width, height: 30))
 
         titleLabel.font = .systemFont(ofSize: 0, weight: .medium)
-        titleLabel.textColor = .secondaryLabelColor
+        titleLabel.textColor = .white
         titleLabel.lineBreakMode = .byTruncatingTail
 
         valueLabel.font = .monospacedSystemFont(ofSize: 0, weight: .medium)
-        valueLabel.textColor = .labelColor
+        valueLabel.textColor = .white
         valueLabel.lineBreakMode = .byTruncatingMiddle
         valueLabel.maximumNumberOfLines = 1
 

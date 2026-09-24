@@ -54,6 +54,14 @@ final class AppStore: ObservableObject {
         systemMetricsService.start { [weak self] snapshot in
             self?.systemMetrics = snapshot
         }
+        systemMetricsService.setHistoryDuration(seconds: configuration.effectiveMetricsHistorySeconds)
+        $configuration
+            .map(\.effectiveMetricsHistorySeconds)
+            .removeDuplicates()
+            .sink { [weak self] seconds in
+                self?.systemMetricsService.setHistoryDuration(seconds: seconds)
+            }
+            .store(in: &cancellables)
     }
 
     deinit {

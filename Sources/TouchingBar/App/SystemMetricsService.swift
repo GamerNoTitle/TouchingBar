@@ -65,7 +65,7 @@ final class SystemMetricsService {
     private let queue = DispatchQueue(label: "app.touchingbar.system-metrics", qos: .utility)
     private var timer: DispatchSourceTimer?
     private var histories: [String: [Double]] = [:]
-    private let historyLimit = 30
+    private var historyLimit = 30
 
     func start(handler: @escaping (SystemMetricsSnapshot) -> Void) {
         guard timer == nil else { return }
@@ -101,6 +101,20 @@ final class SystemMetricsService {
     func stop() {
         timer?.cancel()
         timer = nil
+    }
+
+    func setHistoryDuration(seconds: Int) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            let newLimit = max(10, min(600, seconds))
+            guard newLimit != self.historyLimit else { return }
+            self.historyLimit = newLimit
+            for key in self.histories.keys {
+                guard var values = self.histories[key], values.count > newLimit else { continue }
+                values.removeFirst(values.count - newLimit)
+                self.histories[key] = values
+            }
+        }
     }
 
     private func appendHistory(_ value: Double?, for key: String) {

@@ -52,6 +52,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
     public var messages: MessageSettings
     public var webDAV: WebDAVSettings
     public var lyricsOffset: Double?
+    public var metricsHistorySeconds: Int?
     public var showAgentNotifications: Bool?
     public var presets: [TouchBarPreset]
 
@@ -65,6 +66,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         messages: MessageSettings = MessageSettings(),
         webDAV: WebDAVSettings = WebDAVSettings(),
         lyricsOffset: Double = 0,
+        metricsHistorySeconds: Int = 30,
         showAgentNotifications: Bool = true,
         presets: [TouchBarPreset] = BuiltInPresets.make()
     ) {
@@ -77,11 +79,20 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         self.messages = messages
         self.webDAV = webDAV
         self.lyricsOffset = lyricsOffset
+        self.metricsHistorySeconds = metricsHistorySeconds
         self.showAgentNotifications = showAgentNotifications
         self.presets = presets
         if self.activePresetID == nil {
             self.activePresetID = presets.first?.id
         }
+    }
+
+    public var effectiveMetricsHistorySeconds: Int {
+        get {
+            let value = metricsHistorySeconds ?? 30
+            return [10, 30, 60, 120, 300, 600].contains(value) ? value : 30
+        }
+        set { metricsHistorySeconds = newValue }
     }
 
     public var effectiveShowAgentNotifications: Bool {

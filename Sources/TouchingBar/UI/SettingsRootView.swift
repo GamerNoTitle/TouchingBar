@@ -89,6 +89,36 @@ struct GeneralSettingsView: View {
 
             Section {
                 HStack {
+                    Text("系统资源趋势范围")
+                    Spacer()
+                    Picker(
+                        "",
+                        selection: Binding(
+                            get: { store.configuration.effectiveMetricsHistorySeconds },
+                            set: { value in
+                                store.updateConfiguration { $0.effectiveMetricsHistorySeconds = value }
+                            }
+                        )
+                    ) {
+                        Text("10s").tag(10)
+                        Text("30s").tag(30)
+                        Text("1min").tag(60)
+                        Text("2mins").tag(120)
+                        Text("5mins").tag(300)
+                        Text("10mins").tag(600)
+                    }
+                    .labelsHidden()
+                    .frame(width: 130)
+                }
+                Text("折线图会保留对应时间范围内的逐秒采样点。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } header: {
+                Text("系统资源")
+            }
+
+            Section {
+                HStack {
                     Text("歌词全局偏移")
                     Slider(
                         value: Binding(
