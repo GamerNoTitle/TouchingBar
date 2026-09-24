@@ -13,6 +13,7 @@ APP_DIR="$DIST_DIR/$APP_NAME.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
+BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$ROOT/Resources/Info.plist")"
 
 build_arch() {
     local arch="$1"
@@ -82,7 +83,7 @@ chmod +x "$MACOS_DIR/$APP_NAME" "$MACOS_DIR/TouchingBarCtl"
 if command -v codesign >/dev/null 2>&1; then
     # A stable designated requirement keeps TCC grants (Accessibility,
     # Automation) tied to the bundle identifier instead of a changing CDHash.
-    codesign         --force         --deep         --sign -         --identifier app.touchingbar         -r='designated => identifier "app.touchingbar"'         "$APP_DIR"
+    codesign         --force         --deep         --sign -         --identifier "$BUNDLE_ID"         -r="designated => identifier \"$BUNDLE_ID\""         "$APP_DIR"
 fi
 
 if command -v ditto >/dev/null 2>&1; then
