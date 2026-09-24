@@ -86,7 +86,13 @@ struct SystemMetricsSnapshot: Equatable {
             }
         case "batteryPower":
             return batteryPower.map { watts in
-                batteryIsCharging ? String(format: "⚡ %.1f W", watts) : String(format: "%.1f W", watts)
+                if batteryIsCharging {
+                    return String(format: "充电 %.1f W", watts)
+                }
+                if batteryIsPluggedIn {
+                    return String(format: "外接 %.1f W", watts)
+                }
+                return String(format: "%.1f W", watts)
             }
         case "batteryTime":
             guard let minutes = batteryTimeMinutes else {

@@ -2032,6 +2032,13 @@ private struct ContextItemEditor: View {
 
 }
 
+private enum ChartColorInputMode: String, CaseIterable, Identifiable {
+    case hex
+    case rgb
+
+    var id: String { rawValue }
+}
+
 private struct ChartColorEditor: View {
     @EnvironmentObject private var store: AppStore
     let presetID: UUID
@@ -2042,26 +2049,44 @@ private struct ChartColorEditor: View {
     @State private var redText = "0"
     @State private var greenText = "0"
     @State private var blueText = "0"
+    @State private var inputMode: ChartColorInputMode = .hex
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
+            HStack(spacing: 12) {
                 ColorPicker("折线颜色", selection: colorBinding, supportsOpacity: false)
-                TextField("十六进制", text: $hexText)
-                    .frame(width: 100)
-                    .onSubmit { applyHex() }
-                Button("应用") { applyHex() }
+                Spacer()
+                Picker("输入方式", selection: $inputMode) {
+                    Text("十六进制").tag(ChartColorInputMode.hex)
+                    Text("RGB").tag(ChartColorInputMode.rgb)
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(width: 200)
             }
 
-            HStack(spacing: 6) {
-                Text("RGB")
-                TextField("R", text: $redText)
-                    .frame(width: 44)
-                TextField("G", text: $greenText)
-                    .frame(width: 44)
-                TextField("B", text: $blueText)
-                    .frame(width: 44)
-                Button("应用 RGB") { applyRGB() }
+            switch inputMode {
+            case .hex:
+                HStack(spacing: 10) {
+                    Text("十六进制")
+                    TextField("#RRGGBB", text: $hexText)
+                        .frame(minWidth: 180)
+                        .onSubmit { applyHex() }
+                    Button("应用") { applyHex() }
+                }
+            case .rgb:
+                HStack(spacing: 8) {
+                    Text("R")
+                    TextField("0", text: $redText)
+                        .frame(width: 76)
+                    Text("G")
+                    TextField("0", text: $greenText)
+                        .frame(width: 76)
+                    Text("B")
+                    TextField("0", text: $blueText)
+                        .frame(width: 76)
+                    Button("应用") { applyRGB() }
+                }
             }
 
             Text("支持 #RRGGBB、RRGGBB 或 0–255 的 RGB 分量。")

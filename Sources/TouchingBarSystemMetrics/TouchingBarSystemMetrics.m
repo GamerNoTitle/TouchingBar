@@ -209,20 +209,27 @@ static void TBBatterySample(TBSystemMetricsSnapshot *result) {
         if (isCharging) { result->batteryIsCharging = isCharging.boolValue; }
         if (fullyCharged) { result->batteryIsFullyCharged = fullyCharged.boolValue; }
 
-        NSNumber *amperage = battery[@"InstantAmperage"] ?: battery[@"Amperage"];
-        NSNumber *voltage = battery[@"Voltage"];
-        if (amperage && voltage) {
-            uint64_t rawAmperage = amperage.unsignedLongLongValue;
-            int64_t signedAmperage;
-            if (rawAmperage > INT64_MAX) {
-                signedAmperage = -(int64_t)(UINT64_MAX - rawAmperage + 1);
-            } else {
-                signedAmperage = (int64_t)rawAmperage;
-            }
-            double watts = fabs((double)signedAmperage * voltage.doubleValue / 1000000.0);
-            if (watts > 0.01) {
-                result->batteryPowerWatts = watts;
-                result->hasBatteryPower = YES;
+        NSDictionary *telemetry = battery[@"PowerTelemetryData"];
+        NSNumber *systemPowerIn = telemetry[@"SystemPowerIn"];
+        if (systemPowerIn && systemPowerIn.doubleValue > 0) {
+            result->batteryPowerWatts = systemPowerIn.doubleValue / 1000.0;
+            result->hasBatteryPower = YES;
+        } else {
+            NSNumber *amperage = battery[@"InstantAmperage"] ?: battery[@"Amperage"];
+            NSNumber *voltage = battery[@"Voltage"];
+            if (amperage && voltage) {
+                uint64_t rawAmperage = amperage.unsignedLongLongValue;
+                int64_t signedAmperage;
+                if (rawAmperage > INT64_MAX) {
+                    signedAmperage = -(int64_t)(UINT64_MAX - rawAmperage + 1);
+                } else {
+                    signedAmperage = (int64_t)rawAmperage;
+                }
+                double watts = fabs((double)signedAmperage * voltage.doubleValue / 1000000.0);
+                if (watts > 0.01) {
+                    result->batteryPowerWatts = watts;
+                    result->hasBatteryPower = YES;
+                }
             }
         }
 
