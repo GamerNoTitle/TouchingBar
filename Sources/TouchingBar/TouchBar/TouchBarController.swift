@@ -23,13 +23,15 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         formatter.dateFormat = "HH:mm:ss"
         return formatter
     }()
+    private static var formatterCache: [String: DateFormatter] = [:]
 
     private static let developerContextKeys: Set<String> = [
         "path", "branch", "changes", "python", "node", "java", "go", "rust", "ruby", "php",
         "swift", "docker", "kubernetes", "terraform", "cmake", "xcode"
     ]
     private static let metricContextKeys: Set<String> = [
-        "cpu", "gpu", "memory", "disk", "cpuTemperature", "fanRPM", "networkDownload", "networkUpload"
+        "cpu", "gpu", "memory", "disk", "cpuTemperature", "fanRPM", "networkDownload", "networkUpload",
+        "battery", "batteryPower", "batteryTime"
     ]
 
     private let store: AppStore
@@ -521,7 +523,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                     width: width,
                     showsLabel: configuration.showsLabel
                 )
-                updateContextView(view, key: configuration.contextKey ?? "")
+                updateContextView(view, configuration: configuration)
                 view.frame = NSRect(x: 0, y: 0, width: width, height: 30)
                 contextViews[configuration.id] = view
                 contextConfigurations[configuration.id] = configuration
@@ -562,7 +564,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         if isMetricKey, knownMetricContextKeys.contains(key) {
             return true
         }
-        guard let value = contextValue(for: key) else {
+        guard let value = contextValue(for: key, configuration: item) else {
             return false
         }
         return !value.isEmpty && value != "—"
@@ -624,6 +626,14 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 }
             }
             if Self.metricContextKeys.contains(key) {
+                if ["batteryPower", "batteryTime"].contains(key) {
+                    switch configuration.width {
+                    case .compact: return 80
+                    case .regular: return 150
+                    case .wide: return 280
+                    case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
+                    }
+                }
                 switch configuration.width {
                 case .compact: return 60
                 case .regular: return 120
@@ -695,7 +705,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private func updateContextValues() {
         for (id, view) in contextViews {
             guard let configuration = contextConfigurations[id] else { continue }
-            updateContextView(view, key: configuration.contextKey ?? "")
+            updateContextView(view, configuration: configuration)
         }
         for (id, view) in dualLineLyricViews {
             guard contextConfigurations[id] != nil else { continue }
@@ -706,10 +716,11 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         }
     }
 
-    private func updateContextView(_ view: ContextTouchBarView, key: String) {
+    private func updateContextView(_ view: ContextTouchBarView, configuration: TouchBarItemConfiguration) {
+        let key = configuration.contextKey ?? ""
         let history = store.systemMetrics.history(for: key)
         view.update(
-            value: contextValue(for: key) ?? "—",
+            value: contextValue(for: key, configuration: configuration) ?? "—",
             history: history,
             range: store.systemMetrics.chartRange(for: key, history: history ?? []),
             color: chartColor(for: key),
@@ -727,11 +738,35 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         case "fanRPM": return .systemPink
         case "networkDownload": return .systemCyan
         case "networkUpload": return .systemYellow
+        case "battery": return .systemGreen
+        case "batteryPower": return .systemOrange
+        case "batteryTime": return .systemBlue
         default: return .controlAccentColor
         }
     }
 
-    private func contextValue(for key: String) -> String? {
+    private static func formatDate(_ pattern: String?) -> String {
+        let resolved = pattern?.isEmpty == false ? pattern! : "M月d日 EEE"
+        return formatter(for: resolved).string(from: Date())
+    }
+
+    private static func formatTime(_ pattern: String?) -> String {
+        let resolved = pattern?.isEmpty == false ? pattern! : "HH:mm:ss"
+        return formatter(for: resolved).string(from: Date())
+    }
+
+    private static func formatter(for pattern: String) -> DateFormatter {
+        if let cached = formatterCache[pattern] {
+            return cached
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = pattern
+        formatterCache[pattern] = formatter
+        return formatter
+    }
+
+    private func contextValue(for key: String, configuration: TouchBarItemConfiguration? = nil) -> String? {
         if let value = store.runtime.value(for: key) {
             return value
         }
@@ -744,11 +779,11 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         case "lyric":
             return latestNowPlaying?.currentLyricLine
         case "date":
-            return Self.dateFormatter.string(from: Date())
+            return Self.formatDate(configuration?.dateFormat)
         case "time":
-            return Self.timeFormatter.string(from: Date())
+            return Self.formatTime(configuration?.timeFormat)
         case "dateTime":
-            return "\(Self.dateFormatter.string(from: Date())) \(Self.timeFormatter.string(from: Date()))"
+            return "\(Self.formatDate(configuration?.dateFormat)) \(Self.formatTime(configuration?.timeFormat))"
         case "unreadSummary":
             let total = store.runtime.messages.reduce(0) { $0 + $1.unreadCount }
             return total > 0 ? "\(total) 条未读" : "无未读"
@@ -788,6 +823,8 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 item.dualLineLyrics ? "dual-line" : "single-line",
                 item.presentation.rawValue,
                 item.contextKey ?? "",
+                item.dateFormat ?? "",
+                item.timeFormat ?? "",
                 item.action.kind.rawValue,
                 item.action.value ?? "",
                 item.action.media?.rawValue ?? "",

@@ -63,6 +63,7 @@ struct TouchingBarChecks {
         let metrics = BuiltInPresets.metrics()
         try expect(metrics.items.first?.contextKey == "dateTime" && metrics.items.first?.customWidth == 130, "metrics default includes the current user date time component")
         try expect(metrics.items.first { $0.contextKey == "disk" }?.isHidden == true, "metrics default preserves the hidden disk component")
+        try expect(["battery", "batteryPower", "batteryTime"].allSatisfy { key in metrics.items.contains { $0.contextKey == key } }, "metrics default includes battery components")
     }
 
     private static func checkBackupRoundTrip() throws {
@@ -116,6 +117,18 @@ struct TouchingBarChecks {
         let legacyItem = try JSONDecoder().decode(TouchBarItemConfiguration.self, from: legacyItemJSON)
         try expect(!legacyItem.isHidden, "legacy items decode with a visible default")
         try expect(legacyItem.showsLabel, "legacy items decode with labels enabled by default")
+
+        let formattedTime = TouchBarItemConfiguration(
+            label: "Time",
+            presentation: .context,
+            contextKey: "time",
+            dateFormat: "yyyy-MM-dd",
+            timeFormat: "HH:mm"
+        )
+        let formattedTimeData = try JSONEncoder().encode(formattedTime)
+        let decodedFormattedTime = try JSONDecoder().decode(TouchBarItemConfiguration.self, from: formattedTimeData)
+        try expect(decodedFormattedTime.dateFormat == "yyyy-MM-dd", "date format round-trips")
+        try expect(decodedFormattedTime.timeFormat == "HH:mm", "time format round-trips")
 
         var retiredConfiguration = AppConfiguration()
         retiredConfiguration.presets.append(
@@ -304,7 +317,7 @@ struct TouchingBarChecks {
         try expect(configuration.presets.contains { $0.kind == .metrics }, "missing built-in presets can be restored")
         let metrics = configuration.presets.first { $0.kind == .metrics }
         let keys = Set(metrics?.items.compactMap(\.contextKey) ?? [])
-        try expect(keys.isSuperset(of: ["dateTime", "cpu", "gpu", "memory", "disk", "cpuTemperature", "fanRPM", "networkDownload", "networkUpload"]), "metrics preset contains the current default components")
+        try expect(keys.isSuperset(of: ["dateTime", "battery", "batteryPower", "batteryTime", "cpu", "gpu", "memory", "disk", "cpuTemperature", "fanRPM", "networkDownload", "networkUpload"]), "metrics preset contains the current default components")
     }
 
     private static func checkMetricsHistoryRange() throws {

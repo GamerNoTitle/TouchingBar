@@ -11,6 +11,9 @@ typedef struct {
     double fanRPM;
     double networkUploadBytesPerSecond;
     double networkDownloadBytesPerSecond;
+    double batteryLevelPercent;
+    double batteryPowerWatts;
+    double batteryTimeMinutes;
     BOOL hasCPUUsage;
     BOOL hasGPUUsage;
     BOOL hasMemoryUsage;
@@ -18,6 +21,12 @@ typedef struct {
     BOOL hasCPUTemperature;
     BOOL hasFanRPM;
     BOOL hasNetworkUsage;
+    BOOL hasBatteryLevel;
+    BOOL hasBatteryPower;
+    BOOL hasBatteryTime;
+    BOOL batteryIsCharging;
+    BOOL batteryIsPluggedIn;
+    BOOL batteryIsFullyCharged;
 } TBSystemMetricsSnapshot;
 
 FOUNDATION_EXPORT TBSystemMetricsSnapshot TBSystemMetricsSample(void);

@@ -10,6 +10,12 @@ struct SystemMetricsSnapshot: Equatable {
     var fanRPM: Double?
     var networkUpload: Double?
     var networkDownload: Double?
+    var batteryLevel: Double?
+    var batteryPower: Double?
+    var batteryTimeMinutes: Double?
+    var batteryIsCharging: Bool = false
+    var batteryIsPluggedIn: Bool = false
+    var batteryIsFullyCharged: Bool = false
     var histories: [String: [Double]] = [:]
 
     static let empty = SystemMetricsSnapshot()
@@ -23,6 +29,9 @@ struct SystemMetricsSnapshot: Equatable {
             || fanRPM != nil
             || networkUpload != nil
             || networkDownload != nil
+            || batteryLevel != nil
+            || batteryPower != nil
+            || batteryTimeMinutes != nil
     }
 
     func history(for key: String) -> [Double]? {
@@ -30,7 +39,7 @@ struct SystemMetricsSnapshot: Equatable {
     }
 
     func chartRange(for key: String, history: [Double]) -> ClosedRange<Double>? {
-        if ["cpu", "gpu", "memory", "disk"].contains(key) {
+        if ["cpu", "gpu", "memory", "disk", "battery"].contains(key) {
             return 0...100
         }
         guard let minimum = history.min(), let maximum = history.max() else {
@@ -71,9 +80,36 @@ struct SystemMetricsSnapshot: Equatable {
             return networkDownload.map { Self.speed($0, prefix: "↓") }
         case "networkUpload":
             return networkUpload.map { Self.speed($0, prefix: "↑") }
+        case "battery":
+            return batteryLevel.map { level in
+                batteryIsCharging ? String(format: "⚡ %.0f%%", level) : String(format: "%.0f%%", level)
+            }
+        case "batteryPower":
+            return batteryPower.map { watts in
+                batteryIsCharging ? String(format: "⚡ %.1f W", watts) : String(format: "%.1f W", watts)
+            }
+        case "batteryTime":
+            guard let minutes = batteryTimeMinutes else {
+                return batteryIsPluggedIn && batteryIsFullyCharged ? "已充满" : nil
+            }
+            let formatted = Self.duration(minutes: minutes)
+            if batteryIsPluggedIn {
+                return batteryIsFullyCharged ? "已充满" : "充满 \(formatted)"
+            }
+            return "剩余 \(formatted)"
         default:
             return nil
         }
+    }
+
+    private static func duration(minutes: Double) -> String {
+        let total = max(0, Int(minutes.rounded()))
+        let hours = total / 60
+        let remainingMinutes = total % 60
+        if hours > 0 {
+            return "\(hours)h\(remainingMinutes)m"
+        }
+        return "\(remainingMinutes)m"
     }
 
     private static func speed(_ bytesPerSecond: Double, prefix: String) -> String {
@@ -107,7 +143,13 @@ final class SystemMetricsService {
                 cpuTemperature: raw.hasCPUTemperature.boolValue ? raw.cpuTemperatureCelsius : nil,
                 fanRPM: raw.hasFanRPM.boolValue ? raw.fanRPM : nil,
                 networkUpload: raw.hasNetworkUsage.boolValue ? raw.networkUploadBytesPerSecond : nil,
-                networkDownload: raw.hasNetworkUsage.boolValue ? raw.networkDownloadBytesPerSecond : nil
+                networkDownload: raw.hasNetworkUsage.boolValue ? raw.networkDownloadBytesPerSecond : nil,
+                batteryLevel: raw.hasBatteryLevel.boolValue ? raw.batteryLevelPercent : nil,
+                batteryPower: raw.hasBatteryPower.boolValue ? raw.batteryPowerWatts : nil,
+                batteryTimeMinutes: raw.hasBatteryTime.boolValue ? raw.batteryTimeMinutes : nil,
+                batteryIsCharging: raw.batteryIsCharging.boolValue,
+                batteryIsPluggedIn: raw.batteryIsPluggedIn.boolValue,
+                batteryIsFullyCharged: raw.batteryIsFullyCharged.boolValue
             )
             self.appendHistory(snapshot.cpuUsage, for: "cpu")
             self.appendHistory(snapshot.gpuUsage, for: "gpu")
@@ -117,6 +159,9 @@ final class SystemMetricsService {
             self.appendHistory(snapshot.fanRPM, for: "fanRPM")
             self.appendHistory(snapshot.networkDownload, for: "networkDownload")
             self.appendHistory(snapshot.networkUpload, for: "networkUpload")
+            self.appendHistory(snapshot.batteryLevel, for: "battery")
+            self.appendHistory(snapshot.batteryPower, for: "batteryPower")
+            self.appendHistory(snapshot.batteryTimeMinutes, for: "batteryTime")
             snapshot.histories = self.histories
             DispatchQueue.main.async { handler(snapshot) }
         }

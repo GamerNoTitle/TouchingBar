@@ -50,6 +50,8 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
     public var presentation: TouchBarItemPresentation
     public var action: ActionSpec
     public var contextKey: String?
+    public var dateFormat: String?
+    public var timeFormat: String?
 
     public init(
         id: UUID = UUID(),
@@ -66,7 +68,9 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         dualLineLyrics: Bool = false,
         presentation: TouchBarItemPresentation = .button,
         action: ActionSpec = .none,
-        contextKey: String? = nil
+        contextKey: String? = nil,
+        dateFormat: String? = nil,
+        timeFormat: String? = nil
     ) {
         self.id = id
         self.label = label
@@ -83,6 +87,8 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         self.presentation = presentation
         self.action = action
         self.contextKey = contextKey
+        self.dateFormat = dateFormat
+        self.timeFormat = timeFormat
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -101,6 +107,8 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         case presentation
         case action
         case contextKey
+        case dateFormat
+        case timeFormat
     }
 
     public init(from decoder: Decoder) throws {
@@ -120,6 +128,8 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         presentation = try container.decodeIfPresent(TouchBarItemPresentation.self, forKey: .presentation) ?? .button
         action = try container.decodeIfPresent(ActionSpec.self, forKey: .action) ?? .none
         contextKey = try container.decodeIfPresent(String.self, forKey: .contextKey)
+        dateFormat = try container.decodeIfPresent(String.self, forKey: .dateFormat)
+        timeFormat = try container.decodeIfPresent(String.self, forKey: .timeFormat)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -139,6 +149,8 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         try container.encode(presentation, forKey: .presentation)
         try container.encode(action, forKey: .action)
         try container.encodeIfPresent(contextKey, forKey: .contextKey)
+        try container.encodeIfPresent(dateFormat, forKey: .dateFormat)
+        try container.encodeIfPresent(timeFormat, forKey: .timeFormat)
     }
 }
 

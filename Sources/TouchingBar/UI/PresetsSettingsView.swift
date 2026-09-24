@@ -252,6 +252,9 @@ private struct CustomPresetEditor: View {
     @Binding var selectedItemID: UUID?
 
     private static let metricOptions: [ContextComponentOption] = [
+        .init(id: "battery", title: "电池电量", key: "battery", width: .regular, symbol: "battery.75"),
+        .init(id: "batteryPower", title: "电池功率", key: "batteryPower", width: .regular, symbol: "bolt.fill"),
+        .init(id: "batteryTime", title: "电池时间", key: "batteryTime", width: .regular, symbol: "clock.arrow.circlepath"),
         .init(id: "cpu", title: "CPU", key: "cpu", width: .compact, symbol: "cpu"),
         .init(id: "gpu", title: "GPU", key: "gpu", width: .compact, symbol: "display"),
         .init(id: "memory", title: "内存", key: "memory", width: .compact, symbol: "memorychip"),
@@ -544,6 +547,7 @@ private struct CustomPresetEditor: View {
             "cpu": "CPU", "gpu": "GPU", "memory": "内存", "disk": "硬盘",
             "cpuTemperature": "CPU 温度", "fanRPM": "风扇",
             "networkDownload": "下载速度", "networkUpload": "上传速度",
+            "battery": "电池电量", "batteryPower": "电池功率", "batteryTime": "电池时间",
             "nowPlaying": "正在播放", "lyric": "当前歌词",
             "date": "日期", "time": "时间", "dateTime": "日期 + 时间",
             "unreadSummary": "未读汇总", "latestMessage": "最新消息",
@@ -1765,6 +1769,7 @@ private struct ContextItemsEditor: View {
             "cpu": "CPU", "gpu": "GPU", "memory": "内存", "disk": "硬盘",
             "cpuTemperature": "CPU 温度", "fanRPM": "风扇",
             "networkDownload": "下载速度", "networkUpload": "上传速度",
+            "battery": "电池电量", "batteryPower": "电池功率", "batteryTime": "电池时间",
             "nowPlaying": "正在播放", "lyric": "当前歌词",
             "date": "日期", "time": "时间", "dateTime": "日期 + 时间",
             "unreadSummary": "未读汇总", "latestMessage": "最新消息",
@@ -1776,11 +1781,38 @@ private struct ContextItemsEditor: View {
     }
 }
 
+private struct TextFormatOption: Identifiable {
+    let id: String
+    let title: String
+
+    init(_ id: String, _ title: String) {
+        self.id = id
+        self.title = title
+    }
+}
+
 private struct ContextItemEditor: View {
     @EnvironmentObject private var store: AppStore
     let presetID: UUID
     let itemID: UUID
     let item: TouchBarItemConfiguration
+
+    private static let dateFormatOptions: [TextFormatOption] = [
+        .init("", "默认（M月d日 EEE）"),
+        .init("yyyy-MM-dd", "2026-09-24"),
+        .init("M月d日", "9月24日"),
+        .init("M/d", "9/24"),
+        .init("yyyy年M月d日", "2026年9月24日"),
+        .init("EEE, MMM d", "Thu, Sep 24")
+    ]
+
+    private static let timeFormatOptions: [TextFormatOption] = [
+        .init("", "默认（HH:mm:ss）"),
+        .init("HH:mm", "24 小时：22:30"),
+        .init("HH:mm:ss", "24 小时带秒：22:30:45"),
+        .init("h:mm a", "12 小时：10:30 PM"),
+        .init("h:mm:ss a", "12 小时带秒：10:30:45 PM")
+    ]
 
     var body: some View {
         Form {
@@ -1820,6 +1852,23 @@ private struct ContextItemEditor: View {
                 Text("日期").tag("date")
                 Text("时间").tag("time")
                 Text("日期 + 时间").tag("dateTime")
+                Text("电池电量").tag("battery")
+                Text("电池功率").tag("batteryPower")
+                Text("电池时间").tag("batteryTime")
+            }
+            if isDateRelatedItem {
+                Picker("日期格式", selection: dateFormatBinding) {
+                    ForEach(Self.dateFormatOptions) { option in
+                        Text(option.title).tag(option.id)
+                    }
+                }
+            }
+            if isTimeRelatedItem {
+                Picker("时间格式", selection: timeFormatBinding) {
+                    ForEach(Self.timeFormatOptions) { option in
+                        Text(option.title).tag(option.id)
+                    }
+                }
             }
             WidthEditor(presetID: presetID, itemID: itemID, item: item)
             if (currentItem?.contextKey ?? item.contextKey) == "lyric" {
@@ -1858,6 +1907,40 @@ private struct ContextItemEditor: View {
         store.configuration.presets
             .first(where: { $0.id == presetID })?
             .items.first(where: { $0.id == itemID })
+    }
+
+    private var contextKey: String {
+        currentItem?.contextKey ?? item.contextKey ?? ""
+    }
+
+    private var isDateRelatedItem: Bool {
+        contextKey == "date" || contextKey == "dateTime"
+    }
+
+    private var isTimeRelatedItem: Bool {
+        contextKey == "time" || contextKey == "dateTime"
+    }
+
+    private var dateFormatBinding: Binding<String> {
+        Binding(
+            get: { currentItem?.dateFormat ?? item.dateFormat ?? "" },
+            set: { value in
+                guard var updated = currentItem else { return }
+                updated.dateFormat = value.isEmpty ? nil : value
+                store.updateItem(presetID: presetID, item: updated)
+            }
+        )
+    }
+
+    private var timeFormatBinding: Binding<String> {
+        Binding(
+            get: { currentItem?.timeFormat ?? item.timeFormat ?? "" },
+            set: { value in
+                guard var updated = currentItem else { return }
+                updated.timeFormat = value.isEmpty ? nil : value
+                store.updateItem(presetID: presetID, item: updated)
+            }
+        )
     }
 
     private var isMusicRelatedItem: Bool {
