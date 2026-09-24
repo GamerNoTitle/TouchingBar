@@ -15,7 +15,8 @@ TouchingBar 是一个原生 macOS Touch Bar 信息与轻交互工具。目标不
 - **Agent Hook 配置**：本地监听 `127.0.0.1:19427`，按 session 维护多个 Agent 会话，展示状态、任务、事件、工具和工作目录，并支持等待/完成/失败通知。
 - **歌词全局偏移**：可在设置中统一调整歌词提前或延后时间，偏移对所有歌曲生效；Touch Bar 以 0.5 秒周期刷新当前歌词。
 - **系统资源预设**：展示 CPU、GPU、内存、硬盘、CPU 温度、风扇转速及上传/下载速度，并以 10 秒至 10 分钟可调的滚动折线图显示趋势。
-- **自由组件**：自定义预设可以在同一 Touch Bar 中混合动作按钮、系统资源、开发者信息、Agent 会话、消息和音乐歌词。
+- **自由组件**：自定义预设可以在同一 Touch Bar 中混合动作按钮、系统资源、开发者信息、Agent 会话、消息、音乐歌词和宠物。
+- **Codex 宠物**：可以从 `~/.codex/pets` 扫描安装，或选择任意包含 `pet.json` 的宠物目录；兼容官方 `8×9` 与带方向帧的 `8×11` 精灵图，并在 Touch Bar 上逐帧播放。
 - **消息配置**：从 Dock 角标读取微信、QQ、Telegram、企业微信、飞书和 Lark 的未读数；在获得辅助功能权限后，尝试读取系统通知横幅的发送者与正文，并支持自定义消息 Hook。Touch Bar 通知可以关闭。
 - **菜单栏模式**：菜单栏图标可以显示或隐藏，并提供配置切换、重新显示 Touch Bar和退出等功能。
 - **备份与恢复**：支持 JSON 文件导入导出，以及通过 WebDAV `PUT/GET` 上传和恢复配置。
@@ -67,6 +68,7 @@ bash Scripts/run-dev.sh
 ```text
 ~/Library/Application Support/TouchingBar/config.json
 ~/Library/Application Support/TouchingBar/runtime-context.json
+~/Library/Application Support/TouchingBar/Pets/
 ```
 
 配置模型支持版本号。恢复时会检查 schema/备份格式，并将旧配置规范化到当前版本。
@@ -156,6 +158,7 @@ Sources/TouchingBarChecks/    不依赖 XCTest 的核心回归检查
 - 听写、专注模式等系统动作依赖 macOS 当前版本，无法在无辅助功能权限时完全模拟。设置中可以把这些按钮替换成自定义快捷键或命令。
 - 音乐歌词目前优先读取 Apple Music 当前曲目的歌词；Spotify 与尚未实现的流媒体播放器需要额外 Provider。
 - 当前构建使用 ad-hoc 签名。正式发布时需要 Developer ID 签名与公证；WebDAV 密码已经使用 macOS 钥匙串保存。
+- TouchingBar 不内置第三方宠物素材。安装到 `Application Support/TouchingBar/Pets` 的宠物仍受其原始授权约束；界面中的「关闭动态效果」和 macOS 的“减弱动态效果”都会让宠物使用静态帧。
 
 ## CI 与发布
 
