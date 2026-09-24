@@ -372,12 +372,19 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
         for (index, configuration) in preset.items.enumerated() {
             let width = widths[index]
-            let view = ContextTouchBarView(title: configuration.label, width: width)
-            view.update(value: store.runtime.value(for: configuration.contextKey ?? "") ?? "—")
-            view.frame = NSRect(x: 0, y: 0, width: width, height: 30)
-            contextViews[configuration.id] = view
-            contextConfigurations[configuration.id] = configuration
-            scrollView.addContentView(view, width: width)
+            if configuration.presentation == .context {
+                let view = ContextTouchBarView(title: configuration.label, width: width)
+                updateContextView(view, key: configuration.contextKey ?? "")
+                view.frame = NSRect(x: 0, y: 0, width: width, height: 30)
+                contextViews[configuration.id] = view
+                contextConfigurations[configuration.id] = configuration
+                scrollView.addContentView(view, width: width)
+            } else {
+                scrollView.addContentView(
+                    makeActionButtonView(configuration, preset: preset, width: width),
+                    width: width
+                )
+            }
         }
         scrollView.finishLayout()
         dashboard.addArrangedSubview(scrollView)
@@ -452,7 +459,30 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private func updateContextValues() {
         for (id, view) in contextViews {
             guard let configuration = contextConfigurations[id] else { continue }
-            view.update(value: contextValue(for: configuration.contextKey ?? "") ?? "—")
+            updateContextView(view, key: configuration.contextKey ?? "")
+        }
+    }
+
+    private func updateContextView(_ view: ContextTouchBarView, key: String) {
+        view.update(
+            value: contextValue(for: key) ?? "—",
+            history: store.systemMetrics.history(for: key),
+            range: store.systemMetrics.chartRange(for: key),
+            color: chartColor(for: key)
+        )
+    }
+
+    private func chartColor(for key: String) -> NSColor {
+        switch key {
+        case "cpu": return .systemGreen
+        case "gpu": return .systemPurple
+        case "memory": return .systemBlue
+        case "disk": return .systemTeal
+        case "cpuTemperature": return .systemOrange
+        case "fanRPM": return .systemPink
+        case "networkDownload": return .systemCyan
+        case "networkUpload": return .systemYellow
+        default: return .controlAccentColor
         }
     }
 
@@ -634,34 +664,60 @@ private final class ContextTouchBarScrollView: NSScrollView {
 }
 
 private final class ContextTouchBarView: NSView {
+    private let titleLabel: NSTextField
     private let valueLabel = NSTextField(labelWithString: "—")
+    private let sparkline = SparklineView()
     private let preferredWidth: CGFloat
+    private let baseTitle: String
 
     init(title: String, width: CGFloat) {
+        baseTitle = title
+        titleLabel = NSTextField(labelWithString: title.uppercased())
         preferredWidth = width
         super.init(frame: NSRect(x: 0, y: 0, width: width, height: 30))
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 1
 
-        let titleLabel = NSTextField(labelWithString: title.uppercased())
         titleLabel.font = .systemFont(ofSize: 0, weight: .medium)
         titleLabel.textColor = .secondaryLabelColor
+        titleLabel.lineBreakMode = .byTruncatingTail
 
         valueLabel.font = .monospacedSystemFont(ofSize: 0, weight: .medium)
         valueLabel.textColor = .labelColor
         valueLabel.lineBreakMode = .byTruncatingMiddle
         valueLabel.maximumNumberOfLines = 1
 
+        sparkline.isHidden = true
+
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 0
         stack.addArrangedSubview(titleLabel)
-        stack.addArrangedSubview(valueLabel)
+
+        let bottom = NSView()
+        bottom.translatesAutoresizingMaskIntoConstraints = false
+        valueLabel.translatesAutoresizingMaskIntoConstraints = false
+        sparkline.translatesAutoresizingMaskIntoConstraints = false
+        bottom.addSubview(valueLabel)
+        bottom.addSubview(sparkline)
+        NSLayoutConstraint.activate([
+            bottom.heightAnchor.constraint(equalToConstant: 14),
+            valueLabel.leadingAnchor.constraint(equalTo: bottom.leadingAnchor),
+            valueLabel.trailingAnchor.constraint(lessThanOrEqualTo: bottom.trailingAnchor),
+            valueLabel.centerYAnchor.constraint(equalTo: bottom.centerYAnchor),
+            sparkline.leadingAnchor.constraint(equalTo: bottom.leadingAnchor),
+            sparkline.trailingAnchor.constraint(equalTo: bottom.trailingAnchor),
+            sparkline.topAnchor.constraint(equalTo: bottom.topAnchor),
+            sparkline.bottomAnchor.constraint(equalTo: bottom.bottomAnchor)
+        ])
+        stack.addArrangedSubview(bottom)
+
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: trailingAnchor),
-            stack.centerYAnchor.constraint(equalTo: centerYAnchor)
+            stack.topAnchor.constraint(equalTo: topAnchor, constant: 1),
+            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -1)
         ])
     }
 
@@ -673,8 +729,62 @@ private final class ContextTouchBarView: NSView {
         NSSize(width: preferredWidth, height: 30)
     }
 
-    func update(value: String) {
-        valueLabel.stringValue = value
+    func update(
+        value: String,
+        history: [Double]?,
+        range: ClosedRange<Double>?,
+        color: NSColor
+    ) {
+        if let history, history.count >= 2 {
+            titleLabel.stringValue = "\(baseTitle)  \(value)"
+            valueLabel.isHidden = true
+            sparkline.isHidden = false
+            sparkline.update(values: history, range: range, color: color)
+        } else {
+            titleLabel.stringValue = baseTitle.uppercased()
+            valueLabel.stringValue = value
+            valueLabel.isHidden = false
+            sparkline.isHidden = true
+        }
+    }
+}
+
+private final class SparklineView: NSView {
+    private var values: [Double] = []
+    private var range: ClosedRange<Double>?
+    private var lineColor: NSColor = .systemGreen
+
+    override var isFlipped: Bool { true }
+
+    func update(values: [Double], range: ClosedRange<Double>?, color: NSColor) {
+        self.values = values
+        self.range = range
+        lineColor = color
+        needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard values.count >= 2, bounds.width > 1, bounds.height > 1 else { return }
+
+        let lower = range?.lowerBound ?? values.min() ?? 0
+        let upper = range?.upperBound ?? values.max() ?? lower + 1
+        let span = max(0.0001, upper - lower)
+        let path = NSBezierPath()
+        path.lineWidth = 1.3
+        path.lineJoinStyle = .round
+        path.lineCapStyle = .round
+
+        for (index, value) in values.enumerated() {
+            let x = bounds.minX + bounds.width * CGFloat(index) / CGFloat(values.count - 1)
+            let normalized = max(0, min(1, (value - lower) / span))
+            let y = bounds.maxY - 1 - CGFloat(normalized) * max(1, bounds.height - 2)
+            let point = NSPoint(x: x, y: y)
+            index == 0 ? path.move(to: point) : path.line(to: point)
+        }
+
+        lineColor.setStroke()
+        path.stroke()
     }
 }
 

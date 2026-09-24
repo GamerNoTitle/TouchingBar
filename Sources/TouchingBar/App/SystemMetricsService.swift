@@ -10,8 +10,22 @@ struct SystemMetricsSnapshot: Equatable {
     var fanRPM: Double?
     var networkUpload: Double?
     var networkDownload: Double?
+    var histories: [String: [Double]] = [:]
 
     static let empty = SystemMetricsSnapshot()
+
+    func history(for key: String) -> [Double]? {
+        histories[key]
+    }
+
+    func chartRange(for key: String) -> ClosedRange<Double>? {
+        switch key {
+        case "cpu", "gpu", "memory", "disk":
+            return 0...100
+        default:
+            return nil
+        }
+    }
 
     func value(for key: String) -> String? {
         switch key {
@@ -50,6 +64,8 @@ struct SystemMetricsSnapshot: Equatable {
 final class SystemMetricsService {
     private let queue = DispatchQueue(label: "app.touchingbar.system-metrics", qos: .utility)
     private var timer: DispatchSourceTimer?
+    private var histories: [String: [Double]] = [:]
+    private let historyLimit = 30
 
     func start(handler: @escaping (SystemMetricsSnapshot) -> Void) {
         guard timer == nil else { return }
@@ -57,7 +73,7 @@ final class SystemMetricsService {
         timer.schedule(deadline: .now(), repeating: 1.0)
         timer.setEventHandler {
             let raw = TBSystemMetricsSample()
-            let snapshot = SystemMetricsSnapshot(
+            var snapshot = SystemMetricsSnapshot(
                 cpuUsage: raw.hasCPUUsage.boolValue ? raw.cpuUsagePercent : nil,
                 gpuUsage: raw.hasGPUUsage.boolValue ? raw.gpuUsagePercent : nil,
                 memoryUsage: raw.hasMemoryUsage.boolValue ? raw.memoryUsagePercent : nil,
@@ -67,6 +83,15 @@ final class SystemMetricsService {
                 networkUpload: raw.hasNetworkUsage.boolValue ? raw.networkUploadBytesPerSecond : nil,
                 networkDownload: raw.hasNetworkUsage.boolValue ? raw.networkDownloadBytesPerSecond : nil
             )
+            self.appendHistory(snapshot.cpuUsage, for: "cpu")
+            self.appendHistory(snapshot.gpuUsage, for: "gpu")
+            self.appendHistory(snapshot.memoryUsage, for: "memory")
+            self.appendHistory(snapshot.diskUsage, for: "disk")
+            self.appendHistory(snapshot.cpuTemperature, for: "cpuTemperature")
+            self.appendHistory(snapshot.fanRPM, for: "fanRPM")
+            self.appendHistory(snapshot.networkDownload, for: "networkDownload")
+            self.appendHistory(snapshot.networkUpload, for: "networkUpload")
+            snapshot.histories = self.histories
             DispatchQueue.main.async { handler(snapshot) }
         }
         timer.resume()
@@ -76,5 +101,15 @@ final class SystemMetricsService {
     func stop() {
         timer?.cancel()
         timer = nil
+    }
+
+    private func appendHistory(_ value: Double?, for key: String) {
+        guard let value else { return }
+        var values = histories[key] ?? []
+        values.append(value)
+        if values.count > historyLimit {
+            values.removeFirst(values.count - historyLimit)
+        }
+        histories[key] = values
     }
 }
