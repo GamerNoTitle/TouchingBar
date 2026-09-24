@@ -419,7 +419,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     private func addContextViews(from preset: TouchBarPreset, to dashboard: NSStackView) {
-        let visibleItems = preset.items.filter { shouldDisplayContextItem($0, preset: preset) }
+        let visibleItems = preset.items.filter { shouldDisplayContextItem($0) }
         let widths = visibleItems.map { configuration in
             contextWidth(for: configuration, preset: preset)
         }
@@ -453,12 +453,8 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         dashboard.addArrangedSubview(scrollView)
     }
 
-    private func shouldDisplayContextItem(
-        _ item: TouchBarItemConfiguration,
-        preset: TouchBarPreset
-    ) -> Bool {
+    private func shouldDisplayContextItem(_ item: TouchBarItemConfiguration) -> Bool {
         guard item.presentation == .context else { return true }
-        guard preset.kind == .developer || preset.kind == .metrics else { return true }
         return hasDisplayableContextValue(for: item)
     }
 
