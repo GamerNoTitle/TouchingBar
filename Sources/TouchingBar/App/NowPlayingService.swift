@@ -51,6 +51,38 @@ struct NowPlayingSnapshot: Equatable {
         return (plain, nil)
     }
 
+    var currentDualLineLyricPair: (original: String, secondary: String?)? {
+        let effectivePosition = position - lyricsOffset
+        if let lyricDocument, !lyricDocument.lines.isEmpty {
+            let lines = lyricDocument.lines
+            guard let index = lines.lastIndex(where: { $0.time <= effectivePosition + 0.35 })
+                ?? lines.indices.first else {
+                return nil
+            }
+            let line = lines[index]
+            if let translation = nonEmpty(line.translation) {
+                return (line.text, translation)
+            }
+            let next = index + 1 < lines.count ? nonEmpty(lines[index + 1].text) : nil
+            return (line.text, next)
+        }
+
+        guard let lyrics, !lyrics.isEmpty else { return nil }
+        let timedLines = timedLyrics(from: lyrics)
+        if let index = timedLines.lastIndex(where: { $0.time <= effectivePosition + 0.35 })
+            ?? timedLines.indices.first {
+            let next = index + 1 < timedLines.count ? nonEmpty(timedLines[index + 1].text) : nil
+            return (timedLines[index].text, next)
+        }
+
+        let plainLines = lyrics
+            .components(separatedBy: .newlines)
+            .compactMap { nonEmpty($0) }
+            .filter { !$0.hasPrefix("[") }
+        guard let first = plainLines.first else { return nil }
+        return (first, plainLines.dropFirst().first)
+    }
+
     var currentLyricLine: String? {
         guard let pair = currentLyricPair else { return nil }
         return [pair.original, pair.translation]
@@ -78,6 +110,12 @@ struct NowPlayingSnapshot: Equatable {
         let start = lines[index].time
         let end = index + 1 < lines.count ? lines[index + 1].time : start + 4
         return min(1, max(0, (effectivePosition - start) / max(0.5, end - start)))
+    }
+
+    private func nonEmpty(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func timedLyrics(from lyrics: String) -> [(time: TimeInterval, text: String)] {

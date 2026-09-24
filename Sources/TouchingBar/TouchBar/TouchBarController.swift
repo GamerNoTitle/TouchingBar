@@ -480,7 +480,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             if configuration.contextKey == "lyric", configuration.dualLineLyrics {
                 let view = DualLineLyricsTouchBarView(width: width)
                 view.update(
-                    pair: latestNowPlaying?.currentLyricPair,
+                    pair: latestNowPlaying?.currentDualLineLyricPair,
                     progress: latestNowPlaying?.currentLyricProgress
                 )
                 dualLineLyricViews[configuration.id] = view
@@ -664,7 +664,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         for (id, view) in dualLineLyricViews {
             guard contextConfigurations[id] != nil else { continue }
             view.update(
-                pair: latestNowPlaying?.currentLyricPair,
+                pair: latestNowPlaying?.currentDualLineLyricPair,
                 progress: latestNowPlaying?.currentLyricProgress
             )
         }
@@ -1075,7 +1075,7 @@ private final class MarqueeTextField: NSView {
 
 private final class DualLineLyricsTouchBarView: NSView {
     private let originalLabel = MarqueeTextField()
-    private let translationLabel = MarqueeTextField()
+    private let secondaryLabel = MarqueeTextField()
     private let preferredWidth: CGFloat
 
     init(width: CGFloat) {
@@ -1084,10 +1084,10 @@ private final class DualLineLyricsTouchBarView: NSView {
 
         originalLabel.font = .systemFont(ofSize: 10, weight: .semibold)
         originalLabel.textColor = .labelColor
-        translationLabel.font = .systemFont(ofSize: 9)
-        translationLabel.textColor = .secondaryLabelColor
+        secondaryLabel.font = .systemFont(ofSize: 9)
+        secondaryLabel.textColor = .secondaryLabelColor
 
-        let stack = NSStackView(views: [originalLabel, translationLabel])
+        let stack = NSStackView(views: [originalLabel, secondaryLabel])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.distribution = .fillEqually
@@ -1111,19 +1111,19 @@ private final class DualLineLyricsTouchBarView: NSView {
     }
 
     func update(
-        pair: (original: String, translation: String?)?,
+        pair: (original: String, secondary: String?)?,
         progress: Double?
     ) {
         let original = pair?.original ?? ""
-        let translation = pair?.translation ?? ""
+        let secondary = pair?.secondary ?? ""
         originalLabel.updateText(original, progress: progress)
-        translationLabel.isHidden = translation.isEmpty
-        translationLabel.updateText(translation, progress: progress)
+        secondaryLabel.isHidden = secondary.isEmpty
+        secondaryLabel.updateText(secondary, progress: progress)
         if ProcessInfo.processInfo.environment["TOUCHINGBAR_DEBUG"] == "1" {
             NSLog(
-                "TouchBar dual-line lyric original=%@ translation=%@",
+                "TouchBar dual-line lyric original=%@ secondary=%@",
                 original,
-                translation.isEmpty ? "none" : translation
+                secondary.isEmpty ? "none" : secondary
             )
         }
     }

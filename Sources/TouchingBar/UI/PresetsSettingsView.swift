@@ -1538,7 +1538,7 @@ private struct ContextItemEditor: View {
                     .toggleStyle(.switch)
             }
             if currentItem?.dualLineLyrics == true {
-                Text("双行歌词开启时会自动隐藏 Label，上方显示原文，下方显示翻译。")
+                Text("双行歌词开启时会自动隐藏 Label，上方显示当前句；下方优先显示翻译，无翻译时显示下一句。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
