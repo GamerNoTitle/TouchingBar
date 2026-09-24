@@ -444,7 +444,8 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 let view = ContextTouchBarView(
                     title: configuration.label,
                     width: width,
-                    showsLabel: configuration.showsLabel
+                    showsLabel: configuration.showsLabel,
+                    verticalText: configuration.contextKey == "lyric"
                 )
                 updateContextView(view, key: configuration.contextKey ?? "")
                 view.frame = NSRect(x: 0, y: 0, width: width, height: 30)
@@ -825,7 +826,13 @@ private final class ContextTouchBarScrollView: NSScrollView {
     }
 }
 
-private final class MarqueeTextField: NSView {
+private protocol ScrollingTextDisplay: AnyObject {
+    var font: NSFont { get set }
+    var textColor: NSColor { get set }
+    func updateText(_ text: String)
+}
+
+private final class MarqueeTextField: NSView, ScrollingTextDisplay {
     var font: NSFont = .systemFont(ofSize: 10) {
         didSet { invalidateIntrinsicContentSize(); needsDisplay = true }
     }
@@ -947,18 +954,194 @@ private final class MarqueeTextField: NSView {
     }
 }
 
+private final class VerticalMarqueeTextField: NSView, ScrollingTextDisplay {
+    var font: NSFont = .systemFont(ofSize: 10) {
+        didSet {
+            invalidateIntrinsicContentSize()
+            rebuildChunks()
+            needsDisplay = true
+        }
+    }
+    var textColor: NSColor = .labelColor {
+        didSet { needsDisplay = true }
+    }
+
+    private var text = ""
+    private var chunks: [String] = []
+    private var chunkIndex = 0
+    private var transitionProgress: CGFloat = 0
+    private var transitionStartedAt: Date?
+    private var nextTransitionAt = Date.distantPast
+    private var timer: Timer?
+    private var lastChunkWidth: CGFloat = 0
+
+    override var isFlipped: Bool { false }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: NSView.noIntrinsicMetric, height: ceil(font.ascender - font.descender + 2))
+    }
+
+    func updateText(_ newText: String) {
+        guard newText != text else { return }
+        text = newText
+        toolTip = newText.isEmpty ? nil : newText
+        resetAnimation()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            stopAnimation()
+        } else {
+            startAnimationIfNeeded()
+        }
+    }
+
+    override func layout() {
+        super.layout()
+        if abs(bounds.width - lastChunkWidth) > 1 {
+            rebuildChunks()
+        }
+        startAnimationIfNeeded()
+        needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard !chunks.isEmpty, bounds.width > 0, bounds.height > 0 else { return }
+
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        NSBezierPath(rect: bounds).addClip()
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: textColor
+        ]
+        let size = (chunks[chunkIndex] as NSString).size(withAttributes: attributes)
+        let y = (bounds.height - size.height) / 2
+        (chunks[chunkIndex] as NSString).draw(at: NSPoint(x: 0, y: y + transitionProgress * bounds.height), withAttributes: attributes)
+
+        guard chunks.count > 1 else { return }
+        let nextIndex = (chunkIndex + 1) % chunks.count
+        let next = chunks[nextIndex]
+        let nextSize = (next as NSString).size(withAttributes: attributes)
+        let nextY = (bounds.height - nextSize.height) / 2
+        (next as NSString).draw(
+            at: NSPoint(x: 0, y: nextY - bounds.height + transitionProgress * bounds.height),
+            withAttributes: attributes
+        )
+    }
+
+    deinit {
+        timer?.invalidate()
+    }
+
+    private func resetAnimation() {
+        chunkIndex = 0
+        transitionProgress = 0
+        transitionStartedAt = nil
+        nextTransitionAt = Date().addingTimeInterval(1.8)
+        lastChunkWidth = 0
+        rebuildChunks()
+        needsDisplay = true
+        startAnimationIfNeeded()
+    }
+
+    private func rebuildChunks() {
+        lastChunkWidth = bounds.width
+        guard !text.isEmpty, bounds.width > 1 else {
+            chunks = text.isEmpty ? [] : [text]
+            chunkIndex = 0
+            return
+        }
+
+        var result: [String] = []
+        var current = ""
+        for character in text {
+            let candidate = current + String(character)
+            if current.isEmpty || measuredWidth(candidate) <= bounds.width {
+                current = candidate
+            } else {
+                result.append(current)
+                current = String(character)
+            }
+        }
+        if !current.isEmpty {
+            result.append(current)
+        }
+        chunks = result.isEmpty ? [text] : result
+        if chunkIndex >= chunks.count {
+            chunkIndex = 0
+        }
+    }
+
+    private func measuredWidth(_ value: String) -> CGFloat {
+        ceil((value as NSString).size(withAttributes: [.font: font]).width)
+    }
+
+    private func startAnimationIfNeeded() {
+        guard window != nil, chunks.count > 1 else {
+            stopAnimation()
+            return
+        }
+        guard timer == nil else { return }
+
+        let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
+            self?.tick()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+
+    private func stopAnimation() {
+        timer?.invalidate()
+        timer = nil
+        transitionProgress = 0
+        transitionStartedAt = nil
+        needsDisplay = true
+    }
+
+    private func tick() {
+        guard chunks.count > 1 else {
+            stopAnimation()
+            return
+        }
+        if let transitionStartedAt {
+            let progress = min(1, Date().timeIntervalSince(transitionStartedAt) / 0.35)
+            transitionProgress = progress
+            if progress >= 1 {
+                chunkIndex = (chunkIndex + 1) % chunks.count
+                transitionProgress = 0
+                self.transitionStartedAt = nil
+                nextTransitionAt = Date().addingTimeInterval(1.8)
+            }
+        } else if Date() >= nextTransitionAt {
+            transitionStartedAt = Date()
+            transitionProgress = 0
+        }
+        needsDisplay = true
+    }
+}
+
 private final class ContextTouchBarView: NSView {
     private let titleLabel: NSTextField
-    private let valueLabel = MarqueeTextField()
+    private let valueLabel: NSView & ScrollingTextDisplay
     private let sparkline = SparklineView()
     private let preferredWidth: CGFloat
     private let baseTitle: String
 
-    init(title: String, width: CGFloat, showsLabel: Bool = true) {
+    init(
+        title: String,
+        width: CGFloat,
+        showsLabel: Bool = true,
+        verticalText: Bool = false
+    ) {
         baseTitle = title
         titleLabel = NSTextField(labelWithString: title.uppercased())
         titleLabel.isHidden = !showsLabel
         preferredWidth = width
+        valueLabel = verticalText ? VerticalMarqueeTextField() : MarqueeTextField()
         super.init(frame: NSRect(x: 0, y: 0, width: width, height: 30))
 
         titleLabel.font = .systemFont(ofSize: 10, weight: .semibold)
@@ -1194,7 +1377,7 @@ private final class SparklineView: NSView {
 
 private final class NowPlayingTouchBarView: NSView {
     private let titleLabel = MarqueeTextField()
-    private let lyricsLabel = MarqueeTextField()
+    private let lyricsLabel = VerticalMarqueeTextField()
     private let preferredWidth: CGFloat
 
     init(width: CGFloat) {
