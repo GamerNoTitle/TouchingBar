@@ -359,6 +359,18 @@ private struct CustomPresetEditor: View {
                 }
             }
 
+            Section("日期与时间") {
+                Button("日期") {
+                    addContext("日期", key: "date", width: .regular, symbol: "calendar")
+                }
+                Button("时间") {
+                    addContext("时间", key: "time", width: .regular, symbol: "clock")
+                }
+                Button("日期 + 时间") {
+                    addContext("日期时间", key: "dateTime", width: .wide, symbol: "calendar.badge.clock")
+                }
+            }
+
             Section("系统资源") {
                 ForEach(Self.metricOptions) { option in
                     Button(option.title) {
@@ -506,6 +518,7 @@ private struct CustomPresetEditor: View {
             "cpuTemperature": "CPU 温度", "fanRPM": "风扇",
             "networkDownload": "下载速度", "networkUpload": "上传速度",
             "nowPlaying": "正在播放", "lyric": "当前歌词",
+            "date": "日期", "time": "时间", "dateTime": "日期 + 时间",
             "unreadSummary": "未读汇总", "latestMessage": "最新消息",
             "messageBadges": "消息角标", "provider": "Agent 厂商",
             "task": "任务", "status": "状态", "detail": "详情",
@@ -896,6 +909,22 @@ private struct WidthEditor: View {
             case .custom: return 240
             }
         }
+        if ["date", "time"].contains(key) {
+            switch item.width {
+            case .compact: return 60
+            case .regular: return 120
+            case .wide: return 240
+            case .custom: return 120
+            }
+        }
+        if ["dateTime"].contains(key) {
+            switch item.width {
+            case .compact: return 120
+            case .regular: return 240
+            case .wide: return 480
+            case .custom: return 240
+            }
+        }
         if ["latestMessage", "unreadSummary", "messageBadges"].contains(key) {
             switch item.width {
             case .compact: return 90
@@ -1253,6 +1282,7 @@ private struct ContextItemsEditor: View {
             "cpuTemperature": "CPU 温度", "fanRPM": "风扇",
             "networkDownload": "下载速度", "networkUpload": "上传速度",
             "nowPlaying": "正在播放", "lyric": "当前歌词",
+            "date": "日期", "time": "时间", "dateTime": "日期 + 时间",
             "unreadSummary": "未读汇总", "latestMessage": "最新消息",
             "messageBadges": "消息角标",
             "provider": "Agent 厂商", "task": "任务", "status": "状态",
@@ -1303,6 +1333,9 @@ private struct ContextItemEditor: View {
                 Text("上传速度").tag("networkUpload")
                 Text("正在播放").tag("nowPlaying")
                 Text("当前歌词").tag("lyric")
+                Text("日期").tag("date")
+                Text("时间").tag("time")
+                Text("日期 + 时间").tag("dateTime")
                 Text("未读汇总").tag("unreadSummary")
                 Text("最新消息").tag("latestMessage")
                 Text("消息角标").tag("messageBadges")

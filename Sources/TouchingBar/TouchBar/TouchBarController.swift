@@ -10,6 +10,20 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private static let systemTrayIdentifier = NSTouchBarItem.Identifier("app.touchingbar.system-tray")
     private static let nowPlayingIdentifier = NSTouchBarItem.Identifier("app.touchingbar.now-playing")
     private static let messagesIdentifier = NSTouchBarItem.Identifier("app.touchingbar.messages")
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日 EEE"
+        return formatter
+    }()
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter
+    }()
+
     private static let developerContextKeys: Set<String> = [
         "path", "branch", "changes", "python", "node", "java", "go", "rust", "ruby", "php",
         "swift", "docker", "kubernetes", "terraform", "cmake", "xcode"
@@ -618,7 +632,8 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             value: contextValue(for: key) ?? "—",
             history: history,
             range: store.systemMetrics.chartRange(for: key, history: history ?? []),
-            color: chartColor(for: key)
+            color: chartColor(for: key),
+            lyricProgress: key == "lyric" ? latestNowPlaying?.currentLyricProgress : nil
         )
     }
 
@@ -648,6 +663,12 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             return latestNowPlaying?.compactTitle
         case "lyric":
             return latestNowPlaying?.currentLyricLine
+        case "date":
+            return Self.dateFormatter.string(from: Date())
+        case "time":
+            return Self.timeFormatter.string(from: Date())
+        case "dateTime":
+            return "\(Self.dateFormatter.string(from: Date())) \(Self.timeFormatter.string(from: Date()))"
         case "unreadSummary":
             let total = store.runtime.messages.reduce(0) { $0 + $1.unreadCount }
             return total > 0 ? "\(total) 条未读" : "无未读"
@@ -827,7 +848,13 @@ private final class ContextTouchBarScrollView: NSScrollView {
 
 private final class MarqueeTextField: NSView {
     var font: NSFont = .systemFont(ofSize: 10) {
-        didSet { invalidateIntrinsicContentSize(); needsDisplay = true }
+        didSet {
+            invalidateIntrinsicContentSize()
+            if let timelineProgress {
+                updateOffset(for: timelineProgress)
+            }
+            needsDisplay = true
+        }
     }
     var textColor: NSColor = .labelColor {
         didSet { needsDisplay = true }
@@ -835,9 +862,10 @@ private final class MarqueeTextField: NSView {
 
     private var text = ""
     private var offset: CGFloat = 0
-    private var direction: CGFloat = -1
     private var timer: Timer?
     private var pauseUntil = Date.distantPast
+    private var timelineProgress: Double?
+    private let loopGap: CGFloat = 18
 
     override var isFlipped: Bool { false }
 
@@ -845,25 +873,45 @@ private final class MarqueeTextField: NSView {
         NSSize(width: NSView.noIntrinsicMetric, height: ceil(font.ascender - font.descender + 2))
     }
 
-    func updateText(_ newText: String) {
-        guard newText != text else { return }
-        text = newText
-        toolTip = newText.isEmpty ? nil : newText
-        resetAnimation()
+    func updateText(_ newText: String, progress: Double? = nil) {
+        let changed = newText != text
+        if changed {
+            text = newText
+            toolTip = newText.isEmpty ? nil : newText
+            offset = 0
+        }
+
+        if let progress {
+            let clamped = min(1, max(0, progress))
+            timelineProgress = clamped
+            updateOffset(for: clamped)
+            stopAnimation()
+        } else {
+            timelineProgress = nil
+            if changed {
+                resetLoop()
+            }
+            startAnimationIfNeeded()
+        }
+        needsDisplay = true
     }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if window == nil {
             stopAnimation()
-        } else {
+        } else if timelineProgress == nil {
             startAnimationIfNeeded()
         }
     }
 
     override func layout() {
         super.layout()
-        startAnimationIfNeeded()
+        if let timelineProgress {
+            updateOffset(for: timelineProgress)
+        } else {
+            startAnimationIfNeeded()
+        }
         needsDisplay = true
     }
 
@@ -885,22 +933,36 @@ private final class MarqueeTextField: NSView {
         let size = (text as NSString).size(withAttributes: attributes)
         let y = (bounds.height - size.height) / 2
         (text as NSString).draw(at: NSPoint(x: offset, y: y), withAttributes: attributes)
+
+        if timelineProgress == nil, textWidth > bounds.width + 1 {
+            (text as NSString).draw(
+                at: NSPoint(x: offset + textWidth + loopGap, y: y),
+                withAttributes: attributes
+            )
+        }
     }
 
     deinit {
         timer?.invalidate()
     }
 
-    private func resetAnimation() {
+    private func resetLoop() {
         offset = 0
-        direction = -1
         pauseUntil = Date().addingTimeInterval(0.6)
         needsDisplay = true
         startAnimationIfNeeded()
     }
 
+    private func updateOffset(for progress: Double) {
+        let overflow = max(0, textWidth - bounds.width)
+        offset = -overflow * CGFloat(min(1, max(0, progress)))
+    }
+
     private func startAnimationIfNeeded() {
-        guard window != nil, bounds.width > 1, textWidth > bounds.width + 1 else {
+        guard timelineProgress == nil,
+              window != nil,
+              bounds.width > 1,
+              textWidth > bounds.width + 1 else {
             stopAnimation()
             return
         }
@@ -916,27 +978,20 @@ private final class MarqueeTextField: NSView {
     private func stopAnimation() {
         timer?.invalidate()
         timer = nil
-        offset = 0
-        needsDisplay = true
     }
 
     private func tick() {
-        let overflow = textWidth - bounds.width
-        guard overflow > 1 else {
+        guard timelineProgress == nil,
+              textWidth > bounds.width + 1 else {
             stopAnimation()
             return
         }
         guard Date() >= pauseUntil else { return }
 
-        offset += direction * 24.0 / 30.0
-        if offset <= -overflow {
-            offset = -overflow
-            direction = 1
-            pauseUntil = Date().addingTimeInterval(0.8)
-        } else if offset >= 0 {
-            offset = 0
-            direction = -1
-            pauseUntil = Date().addingTimeInterval(0.8)
+        let cycle = textWidth + loopGap
+        offset -= 26.0 / 30.0
+        if -offset >= cycle {
+            offset += cycle
         }
         needsDisplay = true
     }
@@ -1023,7 +1078,8 @@ private final class ContextTouchBarView: NSView {
         value: String,
         history: [Double]?,
         range: ClosedRange<Double>?,
-        color: NSColor
+        color: NSColor,
+        lyricProgress: Double? = nil
     ) {
         if let history, history.count >= 2 {
             titleLabel.stringValue = "\(baseTitle)  \(value)"
@@ -1032,7 +1088,7 @@ private final class ContextTouchBarView: NSView {
             sparkline.update(values: history, range: range, color: color)
         } else {
             titleLabel.stringValue = baseTitle.uppercased()
-            valueLabel.updateText(value)
+            valueLabel.updateText(value, progress: lyricProgress)
             valueLabel.isHidden = false
             sparkline.isHidden = true
         }
@@ -1236,7 +1292,10 @@ private final class NowPlayingTouchBarView: NSView {
 
     func update(_ snapshot: NowPlayingSnapshot) {
         titleLabel.updateText(snapshot.compactTitle)
-        lyricsLabel.updateText(snapshot.currentLyricLine ?? snapshot.album)
+        lyricsLabel.updateText(
+            snapshot.currentLyricLine ?? snapshot.album,
+            progress: snapshot.currentLyricProgress
+        )
     }
 }
 

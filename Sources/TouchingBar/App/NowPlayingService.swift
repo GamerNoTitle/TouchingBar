@@ -39,6 +39,24 @@ struct NowPlayingSnapshot: Equatable {
             .first(where: { !$0.isEmpty && !$0.hasPrefix("[") })
     }
 
+    var currentLyricProgress: Double? {
+        guard let lyrics, !lyrics.isEmpty else { return nil }
+        let effectivePosition = position - lyricsOffset
+        let lines = timedLyrics(from: lyrics)
+        guard let index = lines.lastIndex(where: { $0.time <= effectivePosition + 0.35 }) else {
+            return nil
+        }
+        let start = lines[index].time
+        let end: TimeInterval
+        if index + 1 < lines.count {
+            end = lines[index + 1].time
+        } else {
+            end = start + 4
+        }
+        let duration = max(0.5, end - start)
+        return min(1, max(0, (effectivePosition - start) / duration))
+    }
+
     private func timedLyrics(from lyrics: String) -> [(time: TimeInterval, text: String)] {
         lyrics.components(separatedBy: .newlines).compactMap { line in
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
