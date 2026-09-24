@@ -45,10 +45,12 @@ struct IntegrationsSettingsView: View {
                     Button(shellHookInstalled ? "重新安装" : "安装 zsh 集成") {
                         installShellHook()
                     }
+                    .buttonStyle(.borderedProminent)
                     if shellHookInstalled {
                         Button("卸载", role: .destructive) {
                             uninstallShellHook()
                         }
+                        .buttonStyle(.bordered)
                     }
                 }
 
@@ -67,17 +69,34 @@ struct IntegrationsSettingsView: View {
     private var agentHookInstallerSection: some View {
         GroupBox("Agent Hook 安装") {
             VStack(alignment: .leading, spacing: 10) {
-                Text("安装后会合并现有配置，只添加或移除 TouchingBar 自己的 Hook，不覆盖其他 Hook。")
-                    .foregroundStyle(.secondary)
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text("安装后会合并现有配置，只添加或移除 TouchingBar 自己的 Hook，不覆盖其他 Hook。")
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("全部安装") { installAllAgentHooks() }
+                        .buttonStyle(.borderedProminent)
+                    Button("全部移除") { uninstallAllAgentHooks() }
+                        .buttonStyle(.bordered)
+                }
+
+                Divider()
 
                 ForEach(AgentHookProvider.allCases) { provider in
-                    HStack {
+                    HStack(spacing: 10) {
                         Label(provider.title, systemImage: providerIcon(provider))
                         Spacer()
+                        Text(agentHookInstalled[provider] == true ? "已安装" : "未安装")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(agentHookInstalled[provider] == true ? Color.green : Color.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(.quaternary, in: Capsule())
                         if agentHookInstalled[provider] == true {
                             Button("移除") { uninstallAgentHook(provider) }
+                                .buttonStyle(.bordered)
                         } else {
                             Button("安装") { installAgentHook(provider) }
+                                .buttonStyle(.bordered)
                         }
                     }
                 }
@@ -108,6 +127,24 @@ struct IntegrationsSettingsView: View {
         }
     }
 
+    private func installAllAgentHooks() {
+        var installed: [String] = []
+        for provider in AgentHookProvider.allCases {
+            do {
+                _ = try AgentHookInstaller().install(
+                    provider: provider,
+                    controlExecutablePath: controlExecutablePath
+                )
+                agentHookInstalled[provider] = true
+                installed.append(provider.title)
+            } catch {
+                integrationStatus = "安装 \(provider.title) Hook 失败：\(error.localizedDescription)"
+                return
+            }
+        }
+        integrationStatus = "已安装全部 Agent Hook：\(installed.joined(separator: "、"))。"
+    }
+
     private func uninstallAgentHook(_ provider: AgentHookProvider) {
         do {
             try AgentHookInstaller().uninstall(provider: provider)
@@ -116,6 +153,19 @@ struct IntegrationsSettingsView: View {
         } catch {
             integrationStatus = "移除 \(provider.title) Hook 失败：\(error.localizedDescription)"
         }
+    }
+
+    private func uninstallAllAgentHooks() {
+        for provider in AgentHookProvider.allCases {
+            do {
+                try AgentHookInstaller().uninstall(provider: provider)
+                agentHookInstalled[provider] = false
+            } catch {
+                integrationStatus = "移除 \(provider.title) Hook 失败：\(error.localizedDescription)"
+                return
+            }
+        }
+        integrationStatus = "已移除全部 Agent Hook。"
     }
 
     private func refreshAgentHookStatus() {
@@ -167,6 +217,7 @@ struct IntegrationsSettingsView: View {
                     Button("发送到 Touch Bar") {
                         sendAgentHook()
                     }
+                    .buttonStyle(.borderedProminent)
                 }
             }
             .padding(.top, 6)
@@ -228,6 +279,7 @@ struct IntegrationsSettingsView: View {
                         Button("发送消息 Hook") {
                             sendMessageHook()
                         }
+                        .buttonStyle(.borderedProminent)
                     }
                 }
                 CodeBlock(text: """
