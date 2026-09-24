@@ -623,6 +623,10 @@ private struct IconPickerView: View {
         .init(id: "paperplane.fill", title: "发送", keywords: "发送 消息", category: "通信")
     ]
 
+    static func contains(_ symbolName: String) -> Bool {
+        choices.contains { $0.id == symbolName }
+    }
+
     private var categories: [String] {
         ["全部", "常用", "媒体", "系统", "资源", "开发", "Agent", "通信"]
     }
@@ -793,11 +797,22 @@ private struct ActionItemEditor: View {
     let itemID: UUID
     let item: TouchBarItemConfiguration
     @State private var showingIconPicker = false
+    @State private var useManualSymbolEntry = false
 
     var body: some View {
         Form {
             TextField("名称", text: binding(\.label))
-            HStack(spacing: 8) {
+            Toggle("手动输入 SF Symbol", isOn: $useManualSymbolEntry)
+                .toggleStyle(.switch)
+
+            if useManualSymbolEntry {
+                HStack(spacing: 8) {
+                    Image(systemName: displaySymbolName)
+                        .font(.system(size: 16, weight: .semibold))
+                        .frame(width: 22)
+                    TextField("输入 SF Symbol 名称", text: optionalBinding(\.symbolName))
+                }
+            } else {
                 Button {
                     showingIconPicker = true
                 } label: {
@@ -812,7 +827,7 @@ private struct ActionItemEditor: View {
                                 .lineLimit(1)
                         }
                     }
-                    .frame(minWidth: 150, alignment: .leading)
+                    .frame(minWidth: 180, alignment: .leading)
                 }
                 .buttonStyle(.bordered)
                 .help("从图标库中选择，不需要知道 SF Symbol 名称")
@@ -822,14 +837,12 @@ private struct ActionItemEditor: View {
                         isPresented: $showingIconPicker
                     )
                 }
+            }
 
-                TextField("也可手动输入 SF Symbol", text: optionalBinding(\.symbolName))
-                    .frame(minWidth: 180)
-                Picker("宽度", selection: binding(\.width)) {
-                    Text("紧凑").tag(TouchBarItemWidth.compact)
-                    Text("常规").tag(TouchBarItemWidth.regular)
-                    Text("宽").tag(TouchBarItemWidth.wide)
-                }
+            Picker("宽度", selection: binding(\.width)) {
+                Text("紧凑").tag(TouchBarItemWidth.compact)
+                Text("常规").tag(TouchBarItemWidth.regular)
+                Text("宽").tag(TouchBarItemWidth.wide)
             }
             Picker("动作", selection: actionBinding(\.kind)) {
                 ForEach(TouchBarActionKind.allCases, id: \.self) { kind in
@@ -851,6 +864,9 @@ private struct ActionItemEditor: View {
         .formStyle(.columns)
         .padding(12)
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+        .onAppear {
+            useManualSymbolEntry = !IconPickerView.contains(displaySymbolName)
+        }
     }
 
     private var displaySymbolName: String {
