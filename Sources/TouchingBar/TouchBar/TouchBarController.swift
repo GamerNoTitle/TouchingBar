@@ -815,51 +815,62 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     private func rebuildSignature(for preset: TouchBarPreset) -> String {
-        let items = preset.items.map { item in
-            [
-                item.id.uuidString,
-                item.label,
-                item.symbolName ?? "",
-                item.imagePath ?? "",
-                item.petID ?? "",
-                item.petAssetID ?? "",
-                item.width.rawValue,
-                item.customWidth.map { String(format: "%.2f", $0) } ?? "",
-                item.isHidden ? "hidden" : "visible",
-                item.hideWhenNotPlaying ? "hide-not-playing" : "always-visible",
-                item.hideWhenPlaying ? "hide-playing" : "visible-playing",
-                item.showsLabel ? "label" : "no-label",
-                item.dualLineLyrics ? "dual-line" : "single-line",
-                item.presentation.rawValue,
-                item.contextKey ?? "",
-                item.dateFormat ?? "",
-                item.timeFormat ?? "",
-                item.chartColorHex ?? "",
-                item.action.kind.rawValue,
-                item.action.value ?? "",
-                item.action.media?.rawValue ?? "",
-                item.action.volume?.rawValue ?? ""
-            ].joined(separator: ":")
-        }.joined(separator: "|")
-        let adaptiveAvailability = preset.items
-            .filter { $0.presentation == .context }
-            .compactMap(\.contextKey)
-            .filter { Self.developerContextKeys.contains($0) || Self.metricContextKeys.contains($0) }
-            .sorted()
-            .map { key in "\(key)=\(hasDisplayableContextValue(for: TouchBarItemConfiguration(label: "", presentation: .context, contextKey: key)))" }
-            .joined(separator: "|")
-        return [
-            preset.id.uuidString,
-            preset.name,
-            preset.kind.rawValue,
-            preset.content.rawValue,
-            items,
-            adaptiveAvailability,
-            preset.effectiveHideWhenNotPlaying ? "preset-hide-not-playing" : "preset-always-visible",
-            latestNowPlaying?.isPlaying == true ? "playing" : "not-playing",
-            store.configuration.hideTouchBarCloseButton ? "hide-close" : "show-close",
-            store.configuration.effectiveDisableAnimations ? "animations-off" : "animations-on"
-        ].joined(separator: "::")
+        let items = preset.items.map { itemSignature($0) }.joined(separator: "|")
+        let adaptiveAvailability = adaptiveAvailabilitySignature(for: preset)
+        var fields: [String] = []
+        fields.append(preset.id.uuidString)
+        fields.append(preset.name)
+        fields.append(preset.kind.rawValue)
+        fields.append(preset.content.rawValue)
+        fields.append(items)
+        fields.append(adaptiveAvailability)
+        fields.append(preset.effectiveHideWhenNotPlaying ? "preset-hide-not-playing" : "preset-always-visible")
+        fields.append(latestNowPlaying?.isPlaying == true ? "playing" : "not-playing")
+        fields.append(store.configuration.hideTouchBarCloseButton ? "hide-close" : "show-close")
+        fields.append(store.configuration.effectiveDisableAnimations ? "animations-off" : "animations-on")
+        return fields.joined(separator: "::")
+    }
+
+    private func itemSignature(_ item: TouchBarItemConfiguration) -> String {
+        var fields: [String] = []
+        fields.reserveCapacity(22)
+        fields.append(item.id.uuidString)
+        fields.append(item.label)
+        fields.append(item.symbolName ?? "")
+        fields.append(item.imagePath ?? "")
+        fields.append(item.petID ?? "")
+        fields.append(item.petAssetID ?? "")
+        fields.append(item.width.rawValue)
+        fields.append(item.customWidth.map { String(format: "%.2f", $0) } ?? "")
+        fields.append(item.isHidden ? "hidden" : "visible")
+        fields.append(item.hideWhenNotPlaying ? "hide-not-playing" : "always-visible")
+        fields.append(item.hideWhenPlaying ? "hide-playing" : "visible-playing")
+        fields.append(item.showsLabel ? "label" : "no-label")
+        fields.append(item.dualLineLyrics ? "dual-line" : "single-line")
+        fields.append(item.presentation.rawValue)
+        fields.append(item.contextKey ?? "")
+        fields.append(item.dateFormat ?? "")
+        fields.append(item.timeFormat ?? "")
+        fields.append(item.chartColorHex ?? "")
+        fields.append(item.action.kind.rawValue)
+        fields.append(item.action.value ?? "")
+        fields.append(item.action.media?.rawValue ?? "")
+        fields.append(item.action.volume?.rawValue ?? "")
+        return fields.joined(separator: ":")
+    }
+
+    private func adaptiveAvailabilitySignature(for preset: TouchBarPreset) -> String {
+        var fields: [String] = []
+        for item in preset.items where item.presentation == .context {
+            guard let key = item.contextKey,
+                  Self.developerContextKeys.contains(key) || Self.metricContextKeys.contains(key) else {
+                continue
+            }
+            let candidate = TouchBarItemConfiguration(label: "", presentation: .context, contextKey: key)
+            fields.append("\(key)=\(hasDisplayableContextValue(for: candidate))")
+        }
+        fields.sort()
+        return fields.joined(separator: "|")
     }
 
     private func updateTouchBarStatus() {

@@ -28,11 +28,20 @@ build_arch() {
         --triple "$triple" \
         --scratch-path "$scratch" \
         --product TouchingBarCtl
-    swift build \
+    local bin_path
+    bin_path="$(swift build \
         --configuration "$CONFIGURATION" \
         --triple "$triple" \
         --scratch-path "$scratch" \
-        --show-bin-path
+        --show-bin-path | tail -n 1)"
+    if [ ! -f "$bin_path/$APP_NAME" ]; then
+        bin_path="$(dirname "$(find "$scratch" -type f -name "$APP_NAME" -perm -111 -print -quit)")"
+    fi
+    if [ ! -f "$bin_path/$APP_NAME" ] || [ ! -f "$bin_path/TouchingBarCtl" ]; then
+        echo "Could not locate $arch build products under $scratch" >&2
+        exit 1
+    fi
+    echo "$bin_path"
 }
 
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$CONTENTS_DIR/Frameworks"
@@ -51,6 +60,13 @@ for arch in $ARCHS; do
     bin_path="$(build_arch "$arch" | tail -n 1)"
     BIN_PATHS+=("$bin_path/$APP_NAME")
     CTL_PATHS+=("$bin_path/TouchingBarCtl")
+done
+
+for path in "${BIN_PATHS[@]}" "${CTL_PATHS[@]}"; do
+    if [ ! -f "$path" ]; then
+        echo "Missing build product: $path" >&2
+        exit 1
+    fi
 done
 
 if [ "${#BIN_PATHS[@]}" -eq 1 ]; then
