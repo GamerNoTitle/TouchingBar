@@ -18,13 +18,28 @@ struct SystemMetricsSnapshot: Equatable {
         histories[key]
     }
 
-    func chartRange(for key: String) -> ClosedRange<Double>? {
-        switch key {
-        case "cpu", "gpu", "memory", "disk":
+    func chartRange(for key: String, history: [Double]) -> ClosedRange<Double>? {
+        if ["cpu", "gpu", "memory", "disk"].contains(key) {
             return 0...100
-        default:
+        }
+        guard let minimum = history.min(), let maximum = history.max() else {
             return nil
         }
+
+        let span = maximum - minimum
+        let minimumSpan = max(abs(maximum) * 0.05, 0.5)
+        let expandedMinimum: Double
+        let expandedMaximum: Double
+        if span < minimumSpan {
+            let expansion = max(abs(maximum) * 0.2, 1)
+            expandedMinimum = max(0, maximum - expansion)
+            expandedMaximum = maximum + expansion
+        } else {
+            let padding = span * 0.15
+            expandedMinimum = minimum == 0 ? 0 : Swift.max(0, minimum - padding)
+            expandedMaximum = maximum + padding
+        }
+        return expandedMinimum...max(expandedMinimum + 0.001, expandedMaximum)
     }
 
     func value(for key: String) -> String? {

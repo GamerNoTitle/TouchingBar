@@ -464,10 +464,11 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     private func updateContextView(_ view: ContextTouchBarView, key: String) {
+        let history = store.systemMetrics.history(for: key)
         view.update(
             value: contextValue(for: key) ?? "—",
-            history: store.systemMetrics.history(for: key),
-            range: store.systemMetrics.chartRange(for: key),
+            history: history,
+            range: store.systemMetrics.chartRange(for: key, history: history ?? []),
             color: chartColor(for: key)
         )
     }
