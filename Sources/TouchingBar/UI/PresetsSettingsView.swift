@@ -1294,6 +1294,14 @@ private struct PetItemEditor: View {
                 }
             }
 
+            if let selectedPet, !selectedPet.assets.isEmpty {
+                Picker("动作 / 图片", selection: petAssetBinding) {
+                    ForEach(selectedPet.assets) { asset in
+                        Text(asset.name).tag(asset.id)
+                    }
+                }
+            }
+
             HStack {
                 Button("从 GitHub 安装…") {
                     showingGitHubInstaller = true
@@ -1308,12 +1316,17 @@ private struct PetItemEditor: View {
 
             if let selectedPet {
                 HStack(spacing: 10) {
-                    PetItemPreview(image: previewImage(for: selectedPet))
+                    PetItemPreview(image: previewImage(for: selectedPet, asset: selectedAsset))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(selectedPet.displayName)
                         Text("\(selectedPet.id) · \(selectedPet.columns)×\(selectedPet.rows) 帧网格")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        if let selectedAsset {
+                            Text(selectedAsset.name)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
             } else if let previewImage {
@@ -1376,7 +1389,7 @@ private struct PetItemEditor: View {
             GitHubPetInstallSheet { installed in
                 refreshInstalledPets()
                 if let first = installed.first {
-                    select(petID: first.id, label: first.displayName)
+                    select(pet: first)
                 }
             }
         }
@@ -1391,6 +1404,14 @@ private struct PetItemEditor: View {
     private var selectedPet: CodexPet? {
         guard let id = currentItem?.petID ?? item.petID else { return nil }
         return installedPets.first(where: { $0.id == id }) ?? CodexPetStore.shared.pet(id: id)
+    }
+
+    private var selectedAsset: CodexPetAsset? {
+        guard let selectedPet else { return nil }
+        let id = currentItem?.petAssetID ?? item.petAssetID
+        return selectedPet.assets.first(where: { $0.id == id })
+            ?? selectedPet.assets.first(where: { $0.id == selectedPet.defaultAssetID })
+            ?? selectedPet.assets.first
     }
 
     private var previewImage: NSImage? {
@@ -1408,8 +1429,26 @@ private struct PetItemEditor: View {
                     updated.imagePath = nil
                     if let pet = installedPets.first(where: { $0.id == value }) {
                         updated.label = pet.displayName
+                        updated.petAssetID = pet.defaultAssetID
                     }
                 }
+                store.updateItem(presetID: presetID, item: updated)
+            }
+        )
+    }
+
+    private var petAssetBinding: Binding<String> {
+        Binding(
+            get: {
+                selectedAsset?.id
+                    ?? currentItem?.petAssetID
+                    ?? item.petAssetID
+                    ?? selectedPet?.defaultAssetID
+                    ?? ""
+            },
+            set: { value in
+                guard var updated = currentItem else { return }
+                updated.petAssetID = value.isEmpty ? nil : value
                 store.updateItem(presetID: presetID, item: updated)
             }
         )
@@ -1468,7 +1507,7 @@ private struct PetItemEditor: View {
             errorMessage = nil
             refreshInstalledPets()
             if let first = installed.first {
-                select(petID: first.id, label: first.displayName)
+                select(pet: first)
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -1486,18 +1525,19 @@ private struct PetItemEditor: View {
             errorMessage = nil
             refreshInstalledPets()
             if let first = installed.first {
-                select(petID: first.id, label: first.displayName)
+                select(pet: first)
             }
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
-    private func select(petID: String, label: String) {
+    private func select(pet: CodexPet) {
         guard var updated = currentItem else { return }
-        updated.petID = petID
+        updated.petID = pet.id
+        updated.petAssetID = pet.defaultAssetID
         updated.imagePath = nil
-        updated.label = label
+        updated.label = pet.displayName
         store.updateItem(presetID: presetID, item: updated)
     }
 
@@ -1517,12 +1557,19 @@ private struct PetItemEditor: View {
         store.updateItem(presetID: presetID, item: updated)
     }
 
-    private func previewImage(for pet: CodexPet) -> NSImage? {
-        guard let spritesheet = try? CodexPetSpritesheet(pet: pet),
-              let frame = spritesheet.frames(count: 1).first else {
-            return nil
+    private func previewImage(for pet: CodexPet, asset: CodexPetAsset?) -> NSImage? {
+        guard let asset else { return nil }
+        switch asset.kind {
+        case .spriteRow:
+            guard let spritesheet = try? CodexPetSpritesheet(pet: pet),
+                  let frame = spritesheet.frames(row: asset.row, count: 1).first else {
+                return nil
+            }
+            return NSImage(cgImage: frame, size: NSSize(width: frame.width, height: frame.height))
+        case .imageFile:
+            guard let relativePath = asset.relativePath else { return nil }
+            return NSImage(contentsOf: pet.directoryURL.appendingPathComponent(relativePath))
         }
-        return NSImage(cgImage: frame, size: NSSize(width: frame.width, height: frame.height))
     }
 }
 

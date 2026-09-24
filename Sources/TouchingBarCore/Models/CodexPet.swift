@@ -62,6 +62,70 @@ public struct CodexPetAnimationTriggers: Codable, Equatable, Sendable {
     }
 }
 
+public struct CodexPetAsset: Identifiable, Equatable, Sendable {
+    public enum Kind: String, Sendable {
+        case spriteRow
+        case imageFile
+    }
+
+    public var id: String
+    public var name: String
+    public var kind: Kind
+    public var row: Int?
+    public var frameCount: Int?
+    public var frameDuration: TimeInterval?
+    public var relativePath: String?
+
+    public init(
+        id: String,
+        name: String,
+        kind: Kind,
+        row: Int? = nil,
+        frameCount: Int? = nil,
+        frameDuration: TimeInterval? = nil,
+        relativePath: String? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.kind = kind
+        self.row = row
+        self.frameCount = frameCount
+        self.frameDuration = frameDuration
+        self.relativePath = relativePath
+    }
+}
+
+public struct CodexPetImageFrame: @unchecked Sendable {
+    public let image: CGImage
+    public let duration: TimeInterval
+
+    public init(image: CGImage, duration: TimeInterval) {
+        self.image = image
+        self.duration = duration
+    }
+}
+
+public final class CodexPetImageSequence {
+    public static func load(from url: URL) throws -> [CodexPetImageFrame] {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              CGImageSourceGetCount(source) > 0 else {
+            throw CodexPetStoreError.invalidSpritesheet(url.path)
+        }
+
+        return (0..<CGImageSourceGetCount(source)).compactMap { index in
+            guard let image = CGImageSourceCreateImageAtIndex(source, index, nil) else {
+                return nil
+            }
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any]
+            let gif = properties?[kCGImagePropertyGIFDictionary] as? [CFString: Any]
+            let delay = (gif?[kCGImagePropertyGIFUnclampedDelayTime] as? NSNumber)?.doubleValue
+                ?? (gif?[kCGImagePropertyGIFDelayTime] as? NSNumber)?.doubleValue
+                ?? 0.1
+            return CodexPetImageFrame(image: image, duration: max(0.04, delay))
+        }
+    }
+}
+
 public struct CodexPet: Identifiable, Equatable, Sendable {
     public enum Source: String, Sendable {
         case installed
@@ -83,6 +147,8 @@ public struct CodexPet: Identifiable, Equatable, Sendable {
     public var defaultRow: Int
     public var defaultFrameCount: Int
     public var frameDuration: TimeInterval
+    public var assets: [CodexPetAsset]
+    public var defaultAssetID: String?
     public var source: Source
 
     public init(
@@ -101,6 +167,8 @@ public struct CodexPet: Identifiable, Equatable, Sendable {
         defaultRow: Int,
         defaultFrameCount: Int,
         frameDuration: TimeInterval,
+        assets: [CodexPetAsset] = [],
+        defaultAssetID: String? = nil,
         source: Source
     ) {
         self.id = id
@@ -118,6 +186,8 @@ public struct CodexPet: Identifiable, Equatable, Sendable {
         self.defaultRow = defaultRow
         self.defaultFrameCount = defaultFrameCount
         self.frameDuration = frameDuration
+        self.assets = assets
+        self.defaultAssetID = defaultAssetID
         self.source = source
     }
 }

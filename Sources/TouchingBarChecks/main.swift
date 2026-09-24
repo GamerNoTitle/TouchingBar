@@ -157,6 +157,11 @@ struct TouchingBarChecks {
         try JSONSerialization.data(withJSONObject: manifest)
             .write(to: source.appendingPathComponent("pet.json"), options: .atomic)
 
+        try FileManager.default.copyItem(
+            at: spritesheetURL,
+            to: source.appendingPathComponent("extra.png")
+        )
+
         let triggers: [String: Any] = [
             "defaultState": "idle",
             "states": ["idle": ["row": 0, "frameDurationMs": 80]]
@@ -178,6 +183,8 @@ struct TouchingBarChecks {
         try expect(pet.columns == 8 && pet.rows == 11, "Codex pet v2 grid is detected")
         try expect(pet.frameWidth == 48 && pet.frameHeight == 52, "Codex pet frame size is detected")
         try expect(abs(pet.frameDuration - 0.08) < 0.001, "Codex pet animation timing is parsed")
+        try expect(pet.assets.contains { $0.id == "state:idle" && $0.kind == .spriteRow }, "Codex pet sprite states are exposed as assets")
+        try expect(pet.assets.contains { $0.relativePath == "extra.png" && $0.kind == .imageFile }, "Codex pet image files are exposed as assets")
         try expect(store.installedPets().count == 1, "Codex pet is copied into TouchingBar support")
         let spritesheet = try CodexPetSpritesheet(pet: pet)
         try expect(spritesheet.frames().count == 8, "Codex pet frame row can be cropped")
@@ -245,6 +252,7 @@ struct TouchingBarChecks {
             symbolName: "photo",
             imagePath: "/tmp/xiaolemi.gif",
             petID: "xiaolemi",
+            petAssetID: "state:idle",
             width: .regular,
             presentation: .image
         )
@@ -265,6 +273,7 @@ struct TouchingBarChecks {
         try expect(restoredItem?.presentation == .image, "image component presentation round-trips")
         try expect(restoredItem?.imagePath == "/tmp/xiaolemi.gif", "image component path round-trips")
         try expect(restoredItem?.petID == "xiaolemi", "pet component ID round-trips")
+        try expect(restoredItem?.petAssetID == "state:idle", "pet component asset ID round-trips")
     }
 
     private static func checkMetricsPresetMigration() throws {

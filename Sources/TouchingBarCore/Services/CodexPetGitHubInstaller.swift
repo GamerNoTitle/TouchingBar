@@ -154,6 +154,7 @@ public final class CodexPetGitHubInstaller: @unchecked Sendable {
             do {
                 try clone(reference: reference, branch: branch, to: cloneDirectory)
                 let searchRoot = try searchRoot(in: cloneDirectory, subpath: reference.subpath)
+                try augmentPetAssets(petRoot: searchRoot, repositoryRoot: cloneDirectory)
                 let installed = try store.install(from: searchRoot, replacing: replacing)
                 if !installed.isEmpty {
                     return installed
@@ -206,6 +207,92 @@ public final class CodexPetGitHubInstaller: @unchecked Sendable {
                 message?.isEmpty == false ? message! : "git exit \(process.terminationStatus)"
             )
         }
+    }
+
+    private func augmentPetAssets(petRoot: URL, repositoryRoot: URL) throws {
+        let normalizedPetRoot = petRoot.standardizedFileURL
+        let normalizedRepositoryRoot = repositoryRoot.standardizedFileURL
+        let petDirectories: [URL]
+        if normalizedPetRoot.path == normalizedRepositoryRoot.path {
+            petDirectories = manifestDirectories(in: normalizedRepositoryRoot)
+        } else {
+            petDirectories = [normalizedPetRoot]
+        }
+        guard !petDirectories.isEmpty else { return }
+
+        let imageExtensions: Set<String> = ["gif", "png", "jpg", "jpeg", "webp", "heic", "bmp", "tiff"]
+        var sources: [URL] = []
+        if let enumerator = fileManager.enumerator(
+            at: normalizedRepositoryRoot,
+            includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        ) {
+            for case let url as URL in enumerator {
+                if enumerator.level > 5 {
+                    enumerator.skipDescendants()
+                    continue
+                }
+                guard imageExtensions.contains(url.pathExtension.lowercased()) else { continue }
+                if let fileSize = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+                   fileSize > 40 * 1024 * 1024 {
+                    continue
+                }
+                sources.append(url)
+            }
+        }
+        guard !sources.isEmpty else { return }
+
+        for petDirectory in petDirectories {
+            let assetsRoot = petDirectory.appendingPathComponent("touchingbar-assets", isDirectory: true)
+            for source in sources {
+                let sourcePath = source.standardizedFileURL.path
+                if sourcePath == petDirectory.path || sourcePath.hasPrefix(petDirectory.path + "/") {
+                    continue
+                }
+                let relative = relativePath(of: source, relativeTo: normalizedRepositoryRoot)
+                guard !relative.isEmpty else { continue }
+                let target = assetsRoot.appendingPathComponent(relative)
+                do {
+                    try fileManager.createDirectory(
+                        at: target.deletingLastPathComponent(),
+                        withIntermediateDirectories: true
+                    )
+                    if fileManager.fileExists(atPath: target.path) {
+                        try fileManager.removeItem(at: target)
+                    }
+                    try fileManager.copyItem(at: source, to: target)
+                } catch {
+                    throw CodexPetGitHubInstallerError.cloneFailed(error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    private func manifestDirectories(in repositoryRoot: URL) -> [URL] {
+        guard let enumerator = fileManager.enumerator(
+            at: repositoryRoot,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        ) else {
+            return []
+        }
+        var directories: [URL] = []
+        for case let url as URL in enumerator {
+            if enumerator.level > 5 {
+                enumerator.skipDescendants()
+                continue
+            }
+            guard url.lastPathComponent.lowercased() == "pet.json" else { continue }
+            directories.append(url.deletingLastPathComponent())
+        }
+        return directories
+    }
+
+    private func relativePath(of url: URL, relativeTo directory: URL) -> String {
+        let root = directory.standardizedFileURL.path
+        let path = url.standardizedFileURL.path
+        guard path.hasPrefix(root + "/") else { return "" }
+        return String(path.dropFirst(root.count + 1))
     }
 
     private func searchRoot(in repositoryRoot: URL, subpath: String?) throws -> URL {

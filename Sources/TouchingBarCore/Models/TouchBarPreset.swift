@@ -40,6 +40,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
     public var symbolName: String?
     public var imagePath: String?
     public var petID: String?
+    public var petAssetID: String?
     public var width: TouchBarItemWidth
     public var customWidth: Double?
     public var isHidden: Bool
@@ -55,6 +56,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         symbolName: String? = nil,
         imagePath: String? = nil,
         petID: String? = nil,
+        petAssetID: String? = nil,
         width: TouchBarItemWidth = .regular,
         customWidth: Double? = nil,
         isHidden: Bool = false,
@@ -69,6 +71,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         self.symbolName = symbolName
         self.imagePath = imagePath
         self.petID = petID
+        self.petAssetID = petAssetID
         self.width = width
         self.customWidth = customWidth
         self.isHidden = isHidden
@@ -85,6 +88,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         case symbolName
         case imagePath
         case petID
+        case petAssetID
         case width
         case customWidth
         case isHidden
@@ -102,6 +106,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         symbolName = try container.decodeIfPresent(String.self, forKey: .symbolName)
         imagePath = try container.decodeIfPresent(String.self, forKey: .imagePath)
         petID = try container.decodeIfPresent(String.self, forKey: .petID)
+        petAssetID = try container.decodeIfPresent(String.self, forKey: .petAssetID)
         width = try container.decodeIfPresent(TouchBarItemWidth.self, forKey: .width) ?? .regular
         customWidth = try container.decodeIfPresent(Double.self, forKey: .customWidth)
         isHidden = try container.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
@@ -119,6 +124,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         try container.encodeIfPresent(symbolName, forKey: .symbolName)
         try container.encodeIfPresent(imagePath, forKey: .imagePath)
         try container.encodeIfPresent(petID, forKey: .petID)
+        try container.encodeIfPresent(petAssetID, forKey: .petAssetID)
         try container.encode(width, forKey: .width)
         try container.encodeIfPresent(customWidth, forKey: .customWidth)
         try container.encode(isHidden, forKey: .isHidden)

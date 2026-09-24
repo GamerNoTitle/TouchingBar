@@ -102,6 +102,21 @@ public final class CodexPetStore: @unchecked Sendable {
                 )
             }
 
+            for asset in sourcePet.assets where asset.kind == .imageFile {
+                guard let relativePath = asset.relativePath else { continue }
+                let source = sourcePet.directoryURL.appendingPathComponent(relativePath)
+                let target = destination.appendingPathComponent(relativePath)
+                guard fileManager.fileExists(atPath: source.path) else { continue }
+                try fileManager.createDirectory(
+                    at: target.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                if fileManager.fileExists(atPath: target.path) {
+                    try fileManager.removeItem(at: target)
+                }
+                try fileManager.copyItem(at: source, to: target)
+            }
+
             guard let installed = try? loadPet(
                 at: destination.appendingPathComponent("pet.json"),
                 source: .installed
@@ -209,14 +224,16 @@ public final class CodexPetStore: @unchecked Sendable {
         let defaultDefinition = triggers?.states?[defaultState]
         let defaultRow = max(0, min(rows - 1, defaultDefinition?.row ?? 0))
         let defaultFrameCount = max(1, min(columns, defaultDefinition?.frames ?? columns))
-        let frameDuration: TimeInterval
-        if let frameDurationMs = defaultDefinition?.frameDurationMs {
-            frameDuration = max(0.04, Double(frameDurationMs) / 1000.0)
-        } else if let durationMs = defaultDefinition?.durationMs {
-            frameDuration = max(0.04, Double(durationMs) / 1000.0 / Double(defaultFrameCount))
-        } else {
-            frameDuration = 0.16
-        }
+        let frameDuration = frameDuration(for: defaultDefinition, frameCount: defaultFrameCount)
+        let assetResult = petAssets(
+            directory: directory,
+            spritesheetURL: spritesheetURL,
+            triggers: triggers,
+            columns: columns,
+            defaultState: defaultState,
+            defaultFrameCount: defaultFrameCount,
+            defaultFrameDuration: frameDuration
+        )
 
         return CodexPet(
             id: petID,
@@ -234,8 +251,117 @@ public final class CodexPetStore: @unchecked Sendable {
             defaultRow: defaultRow,
             defaultFrameCount: defaultFrameCount,
             frameDuration: frameDuration,
+            assets: assetResult.assets,
+            defaultAssetID: assetResult.defaultID,
             source: source
         )
+    }
+
+    private func frameDuration(
+        for definition: CodexPetAnimationState?,
+        frameCount: Int
+    ) -> TimeInterval {
+        if let frameDurationMs = definition?.frameDurationMs {
+            return max(0.04, Double(frameDurationMs) / 1000.0)
+        }
+        if let durationMs = definition?.durationMs {
+            return max(0.04, Double(durationMs) / 1000.0 / Double(max(1, frameCount)))
+        }
+        return 0.16
+    }
+
+    private func petAssets(
+        directory: URL,
+        spritesheetURL: URL,
+        triggers: CodexPetAnimationTriggers?,
+        columns: Int,
+        defaultState: String,
+        defaultFrameCount: Int,
+        defaultFrameDuration: TimeInterval
+    ) -> (assets: [CodexPetAsset], defaultID: String?) {
+        var assets: [CodexPetAsset] = []
+
+        if let states = triggers?.states, !states.isEmpty {
+            for key in states.keys.sorted() {
+                guard let definition = states[key], let row = definition.row else { continue }
+                let frameCount = max(1, min(columns, definition.frames ?? columns))
+                assets.append(
+                    CodexPetAsset(
+                        id: "state:\(key)",
+                        name: definition.label ?? key,
+                        kind: .spriteRow,
+                        row: row,
+                        frameCount: frameCount,
+                        frameDuration: frameDuration(for: definition, frameCount: frameCount)
+                    )
+                )
+            }
+        }
+
+        if assets.isEmpty {
+            assets.append(
+                CodexPetAsset(
+                    id: "row:0",
+                    name: "默认动作",
+                    kind: .spriteRow,
+                    row: 0,
+                    frameCount: defaultFrameCount,
+                    frameDuration: defaultFrameDuration
+                )
+            )
+        }
+
+        let spritesheetPath = spritesheetURL.standardizedFileURL.path
+        let imageExtensions: Set<String> = ["gif", "png", "jpg", "jpeg", "webp", "heic", "bmp", "tiff"]
+        if let enumerator = fileManager.enumerator(
+            at: directory,
+            includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        ) {
+            for case let url as URL in enumerator {
+                if enumerator.level > 5 {
+                    enumerator.skipDescendants()
+                    continue
+                }
+                let extensionName = url.pathExtension.lowercased()
+                guard imageExtensions.contains(extensionName),
+                      url.standardizedFileURL.path != spritesheetPath else {
+                    continue
+                }
+                if let fileSize = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+                   fileSize > 40 * 1024 * 1024 {
+                    continue
+                }
+                let relative = relativePath(of: url, relativeTo: directory)
+                guard !relative.isEmpty else { continue }
+                assets.append(
+                    CodexPetAsset(
+                        id: "file:\(relative)",
+                        name: relative,
+                        kind: .imageFile,
+                        relativePath: relative
+                    )
+                )
+            }
+        }
+
+        assets.sort { lhs, rhs in
+            if lhs.kind != rhs.kind {
+                return lhs.kind == .spriteRow
+            }
+            return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+        }
+
+        let defaultID = assets.first(where: { $0.id == "state:\(defaultState)" })?.id
+            ?? assets.first(where: { $0.kind == .spriteRow })?.id
+        return (assets, defaultID)
+    }
+
+    private func relativePath(of url: URL, relativeTo directory: URL) -> String {
+        let root = directory.standardizedFileURL.path
+        let path = url.standardizedFileURL.path
+        guard path.hasPrefix(root + "/") else { return "" }
+        return String(path.dropFirst(root.count + 1))
     }
 
     private func resolvedURL(_ path: String, relativeTo directory: URL) -> URL {

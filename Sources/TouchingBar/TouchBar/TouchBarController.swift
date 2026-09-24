@@ -497,6 +497,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                    let pet = CodexPetStore.shared.pet(id: petID) {
                     let petView = CodexPetTouchBarView(
                         pet: pet,
+                        assetID: configuration.petAssetID,
                         width: width,
                         animationsEnabled: !store.configuration.effectiveDisableAnimations
                     )
@@ -765,6 +766,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 item.symbolName ?? "",
                 item.imagePath ?? "",
                 item.petID ?? "",
+                item.petAssetID ?? "",
                 item.width.rawValue,
                 item.customWidth.map { String(format: "%.2f", $0) } ?? "",
                 item.isHidden ? "hidden" : "visible",
@@ -1325,17 +1327,27 @@ private final class DualLineLyricsTouchBarView: NSView {
     }
 }
 
-private final class CodexPetTouchBarView: NSView {
+private struct TouchBarAnimationFrame {
+    let image: NSImage
+    let duration: TimeInterval
+}
+
+private class LoopingImageTouchBarView: NSView {
     private let imageView = NSImageView()
+    private let frames: [TouchBarAnimationFrame]
     private let animationsEnabled: Bool
-    private let frameDuration: TimeInterval
-    private var frames: [NSImage] = []
     private var timer: Timer?
     private var frameIndex = 0
 
-    init(pet: CodexPet, width: CGFloat, animationsEnabled: Bool) {
+    init(
+        frames: [TouchBarAnimationFrame],
+        placeholder: NSImage?,
+        width: CGFloat,
+        animationsEnabled: Bool,
+        toolTip: String?
+    ) {
+        self.frames = frames
         self.animationsEnabled = animationsEnabled
-        frameDuration = pet.frameDuration
         super.init(frame: NSRect(x: 0, y: 0, width: width, height: 30))
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
@@ -1345,27 +1357,14 @@ private final class CodexPetTouchBarView: NSView {
         imageView.imageAlignment = .alignCenter
         imageView.imageScaling = .scaleProportionallyUpOrDown
         imageView.imageFrameStyle = .none
+        imageView.animates = false
         addSubview(imageView)
 
-        if let spritesheet = try? CodexPetSpritesheet(pet: pet) {
-            frames = spritesheet.frames().map {
-                NSImage(cgImage: $0, size: NSSize(width: $0.width, height: $0.height))
-            }
+        imageView.image = frames.first?.image ?? placeholder
+        if frames.isEmpty {
+            imageView.contentTintColor = .secondaryLabelColor
         }
-        imageView.image = frames.first
-        toolTip = pet.displayName
-        if ProcessInfo.processInfo.environment["TOUCHINGBAR_DEBUG"] == "1" {
-            NSLog(
-                "TouchBar pet view id=%@ grid=%dx%d frames=%ld row=%d duration=%.3f animations=%@",
-                pet.id,
-                pet.columns,
-                pet.rows,
-                frames.count,
-                pet.defaultRow,
-                pet.frameDuration,
-                animationsEnabled ? "true" : "false"
-            )
-        }
+        self.toolTip = toolTip
     }
 
     required init?(coder: NSCoder) {
@@ -1390,11 +1389,23 @@ private final class CodexPetTouchBarView: NSView {
     }
 
     private func startAnimation() {
+        guard frames.count > 1 else {
+            imageView.image = frames.first?.image
+            return
+        }
+        frameIndex = min(frameIndex, frames.count - 1)
+        imageView.image = frames[frameIndex].image
+        scheduleNextFrame()
+    }
+
+    private func scheduleNextFrame() {
         guard timer == nil, frames.count > 1 else { return }
-        let timer = Timer(timeInterval: frameDuration, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: frames[frameIndex].duration, repeats: false) { [weak self] _ in
             guard let self, !self.frames.isEmpty else { return }
             self.frameIndex = (self.frameIndex + 1) % self.frames.count
-            self.imageView.image = self.frames[self.frameIndex]
+            self.imageView.image = self.frames[self.frameIndex].image
+            self.timer = nil
+            self.scheduleNextFrame()
         }
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
@@ -1406,33 +1417,32 @@ private final class CodexPetTouchBarView: NSView {
     }
 }
 
-private final class ImageTouchBarView: NSView {
-    private let imageView = NSImageView()
-    private let animates: Bool
-
-    init(path: String?, width: CGFloat, animates: Bool) {
-        self.animates = animates
-        super.init(frame: NSRect(x: 0, y: 0, width: width, height: 30))
-        wantsLayer = true
-        layer?.backgroundColor = NSColor.clear.cgColor
-
-        imageView.frame = bounds.insetBy(dx: 1, dy: 1)
-        imageView.autoresizingMask = [.width, .height]
-        imageView.imageAlignment = .alignCenter
-        imageView.imageScaling = .scaleProportionallyUpOrDown
-        imageView.imageFrameStyle = .none
-        addSubview(imageView)
-
-        if let path, !path.isEmpty, let image = NSImage(contentsOfFile: path) {
-            imageView.image = image
-            imageView.animates = animates
-            toolTip = path
-        } else {
-            let placeholder = NSImage(systemSymbolName: "photo", accessibilityDescription: "图片")
-            placeholder?.isTemplate = true
-            imageView.image = placeholder
-            imageView.contentTintColor = .secondaryLabelColor
-            toolTip = path?.isEmpty == false ? "无法读取图片：\(path ?? "")" : "未选择图片"
+private final class CodexPetTouchBarView: LoopingImageTouchBarView {
+    init(pet: CodexPet, assetID: String?, width: CGFloat, animationsEnabled: Bool) {
+        let asset = pet.assets.first(where: { $0.id == assetID })
+            ?? pet.assets.first(where: { $0.id == pet.defaultAssetID })
+            ?? pet.assets.first
+        let frames = Self.frames(for: pet, asset: asset)
+        let placeholder = NSImage(systemSymbolName: "pawprint", accessibilityDescription: "宠物")
+        placeholder?.isTemplate = true
+        super.init(
+            frames: frames,
+            placeholder: placeholder,
+            width: width,
+            animationsEnabled: animationsEnabled,
+            toolTip: pet.displayName
+        )
+        if ProcessInfo.processInfo.environment["TOUCHINGBAR_DEBUG"] == "1" {
+            NSLog(
+                "TouchBar pet view id=%@ asset=%@ grid=%dx%d frames=%ld row=%d animations=%@",
+                pet.id,
+                asset?.name ?? "none",
+                pet.columns,
+                pet.rows,
+                frames.count,
+                asset?.row ?? pet.defaultRow,
+                animationsEnabled ? "true" : "false"
+            )
         }
     }
 
@@ -1440,8 +1450,59 @@ private final class ImageTouchBarView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    override var intrinsicContentSize: NSSize {
-        NSSize(width: frame.width, height: 30)
+    private static func frames(for pet: CodexPet, asset: CodexPetAsset?) -> [TouchBarAnimationFrame] {
+        guard let asset else { return [] }
+        switch asset.kind {
+        case .spriteRow:
+            guard let spritesheet = try? CodexPetSpritesheet(pet: pet) else { return [] }
+            let duration = asset.frameDuration ?? pet.frameDuration
+            return spritesheet.frames(row: asset.row, count: asset.frameCount).map {
+                TouchBarAnimationFrame(
+                    image: NSImage(cgImage: $0, size: NSSize(width: $0.width, height: $0.height)),
+                    duration: duration
+                )
+            }
+        case .imageFile:
+            guard let relativePath = asset.relativePath else { return [] }
+            let url = pet.directoryURL.appendingPathComponent(relativePath)
+            guard let sequence = try? CodexPetImageSequence.load(from: url) else { return [] }
+            return sequence.map {
+                TouchBarAnimationFrame(
+                    image: NSImage(cgImage: $0.image, size: NSSize(width: $0.image.width, height: $0.image.height)),
+                    duration: $0.duration
+                )
+            }
+        }
+    }
+}
+
+private final class ImageTouchBarView: LoopingImageTouchBarView {
+    init(path: String?, width: CGFloat, animates: Bool) {
+        let frames: [TouchBarAnimationFrame]
+        if let path, !path.isEmpty,
+           let sequence = try? CodexPetImageSequence.load(from: URL(fileURLWithPath: path)) {
+            frames = sequence.map {
+                TouchBarAnimationFrame(
+                    image: NSImage(cgImage: $0.image, size: NSSize(width: $0.image.width, height: $0.image.height)),
+                    duration: $0.duration
+                )
+            }
+        } else {
+            frames = []
+        }
+        let placeholder = NSImage(systemSymbolName: "photo", accessibilityDescription: "图片")
+        placeholder?.isTemplate = true
+        super.init(
+            frames: frames,
+            placeholder: placeholder,
+            width: width,
+            animationsEnabled: animates,
+            toolTip: path
+        )
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
 }
 
