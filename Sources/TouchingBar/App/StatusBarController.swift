@@ -100,7 +100,7 @@ final class StatusBarController: NSObject {
         menu.addItem(settingsItem)
 
         let quitItem = menuItem(
-            title: "退出 TouchingBar（停止占用）",
+            title: "退出 TouchingBar",
             action: #selector(quit),
             keyEquivalent: "q"
         )
