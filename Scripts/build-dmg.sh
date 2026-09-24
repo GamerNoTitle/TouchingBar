@@ -25,12 +25,17 @@ TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/touchingbar-dmg.XXXXXX")"
 STAGING_DIR="$TMP_DIR/staging"
 RW_DMG="$TMP_DIR/$APP_NAME-rw.dmg"
 MOUNT_DIR=""
+MOUNT_DEVICE=""
 BACKGROUND_PATH="${DMG_BACKGROUND_PATH:-$TMP_DIR/background.png}"
 MOUNTED=0
 
 cleanup() {
     if [ "$MOUNTED" -eq 1 ]; then
-        hdiutil detach "$MOUNT_DIR" -force >/dev/null 2>&1 || true
+        if [ -n "$MOUNT_DEVICE" ]; then
+            hdiutil detach "$MOUNT_DEVICE" -force >/dev/null 2>&1 || true
+        else
+            hdiutil detach "$MOUNT_DIR" -force >/dev/null 2>&1 || true
+        fi
     fi
     rm -rf "$TMP_DIR"
 }
@@ -90,8 +95,10 @@ end tell
 APPLESCRIPT
 
 sync
-if ! hdiutil detach "$MOUNT_DIR" >/dev/null 2>&1; then
-    hdiutil detach "$MOUNT_DIR" -force >/dev/null
+if [ -n "$MOUNT_DEVICE" ]; then
+    hdiutil detach "$MOUNT_DEVICE" -force >/dev/null 2>&1 || true
+else
+    hdiutil detach "$MOUNT_DIR" -force >/dev/null 2>&1 || true
 fi
 MOUNTED=0
 
