@@ -17,7 +17,6 @@ final class AppStore: ObservableObject {
     @Published var activeApplicationName: String?
     @Published var touchBarStatus = "Touch Bar：等待启动"
     @Published var systemMetrics = SystemMetricsSnapshot.empty
-    @Published private(set) var webDAVPassword = ""
 
     let configurationStore: ConfigurationStore
     let backupService: BackupService
@@ -32,6 +31,7 @@ final class AppStore: ObservableObject {
     private var refreshTimer: Timer?
     private var lastDeveloperRefresh = Date.distantPast
     private var lastWorkingDirectory: String?
+    private var cachedWebDAVPassword: String?
     private var cancellables: Set<AnyCancellable> = []
 
     init(
@@ -53,7 +53,6 @@ final class AppStore: ObservableObject {
         configuration = loadedConfiguration
         savedConfiguration = loadedConfiguration
         runtime = contextStore.load()
-        webDAVPassword = webDAVKeychain.loadPassword() ?? ""
 
         NSWorkspace.shared.notificationCenter.addObserver(
             self,
@@ -107,10 +106,19 @@ final class AppStore: ObservableObject {
         save()
     }
 
+    func loadWebDAVPassword() -> String {
+        if let cachedWebDAVPassword {
+            return cachedWebDAVPassword
+        }
+        let password = webDAVKeychain.loadPassword() ?? ""
+        cachedWebDAVPassword = password
+        return password
+    }
+
     func saveWebDAVPassword(_ password: String) {
         do {
             try webDAVKeychain.savePassword(password)
-            webDAVPassword = password
+            cachedWebDAVPassword = password
         } catch {
             lastError = error.localizedDescription
         }
@@ -119,7 +127,7 @@ final class AppStore: ObservableObject {
     func clearWebDAVPassword() {
         do {
             try webDAVKeychain.deletePassword()
-            webDAVPassword = ""
+            cachedWebDAVPassword = nil
         } catch {
             lastError = error.localizedDescription
         }

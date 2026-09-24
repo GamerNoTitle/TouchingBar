@@ -13,6 +13,8 @@ public enum WebDAVKeychainError: Error, LocalizedError {
 }
 
 public struct WebDAVKeychain: Sendable {
+    // Keep the legacy service name so existing installs retain their saved
+    // WebDAV password after the bundle identifier migration.
     public static let service = "app.touchingbar.webdav"
     public static let account = "default"
 

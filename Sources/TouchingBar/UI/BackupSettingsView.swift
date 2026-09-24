@@ -14,14 +14,21 @@ struct BackupSettingsView: View {
             Section {
                 TextField("服务器 URL", text: webDAVBinding(\.serverURL), prompt: Text("https://dav.example.com/remote.php/dav/files/me"))
                 TextField("用户名", text: webDAVBinding(\.username))
-                SecureField("密码", text: $password)
-                    .focused($passwordFocused)
-                    .onSubmit {
-                        savePassword()
-                        passwordFocused = false
+                HStack {
+                    SecureField("密码", text: $password)
+                        .focused($passwordFocused)
+                        .onSubmit {
+                            passwordFocused = false
+                        }
+                    Button("清除已保存密码") {
+                        store.clearWebDAVPassword()
+                        password = ""
+                        statusText = "已清除已保存的 WebDAV 密码。"
                     }
+                    .buttonStyle(.bordered)
+                }
                 TextField("远程文件路径", text: webDAVBinding(\.remotePath))
-                Text("密码会在输入框失焦后自动保存到 macOS 钥匙串，不会写入配置文件或备份文件。")
+                Text("密码不会在启动时读取。点击上传或从 WebDAV 恢复时，才会从 macOS 钥匙串读取；输入新密码并失焦后会更新钥匙串。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } header: {
@@ -58,9 +65,6 @@ struct BackupSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .onAppear {
-            password = store.webDAVPassword
-        }
         .onChange(of: passwordFocused) { focused in
             if !focused {
                 savePassword()
@@ -74,7 +78,20 @@ struct BackupSettingsView: View {
     }
 
     private func savePassword() {
+        guard !password.isEmpty else { return }
         store.saveWebDAVPassword(password)
+    }
+
+    private func resolvedPassword() throws -> String {
+        if !password.isEmpty {
+            store.saveWebDAVPassword(password)
+            return password
+        }
+        let storedPassword = store.loadWebDAVPassword()
+        guard !storedPassword.isEmpty else {
+            throw WebDAVPasswordError.missing
+        }
+        return storedPassword
     }
 
     private func webDAVBinding(_ keyPath: WritableKeyPath<WebDAVSettings, String>) -> Binding<String> {
@@ -87,11 +104,11 @@ struct BackupSettingsView: View {
     }
 
     private func uploadBackup() {
-        savePassword()
         isWorking = true
         statusText = "正在上传…"
         Task {
             do {
+                let password = try resolvedPassword()
                 let data = try store.backupService.encode(configuration: store.configuration)
                 try await store.webDAVClient.upload(data, settings: store.configuration.webDAV, password: password)
                 statusText = "上传成功。"
@@ -103,11 +120,11 @@ struct BackupSettingsView: View {
     }
 
     private func downloadBackup() {
-        savePassword()
         isWorking = true
         statusText = "正在下载…"
         Task {
             do {
+                let password = try resolvedPassword()
                 let data = try await store.webDAVClient.download(settings: store.configuration.webDAV, password: password)
                 let configuration = try store.backupService.decode(data)
                 store.configuration = configuration
@@ -149,5 +166,13 @@ struct BackupSettingsView: View {
         } catch {
             statusText = "恢复失败：\(error.localizedDescription)"
         }
+    }
+}
+
+private enum WebDAVPasswordError: LocalizedError {
+    case missing
+
+    var errorDescription: String? {
+        "请输入 WebDAV 密码，或先在上传前保存密码。"
     }
 }
