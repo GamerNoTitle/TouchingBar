@@ -137,7 +137,7 @@ curl -X POST http://127.0.0.1:19427/v1/messages \
 - `GET` 下载并发恢复
 - 本地导出/导入 JSON 备份文件
 
-密码不会写进配置和备份文件，只保留在当前设置会话中。后续应迁移到 Keychain 以便长期保存。
+密码不会写进配置和备份文件，而是保存在 macOS 钥匙串中；上传或恢复成功后会记住密码，下次启动自动载入。
 
 ## 工程结构
 
@@ -155,7 +155,7 @@ Sources/TouchingBarChecks/    不依赖 XCTest 的核心回归检查
 - Dock 角标和系统消息横幅读取依赖辅助功能元素；不同 IM 与 macOS 版本可能改变 `AXStatusLabel` 或通知层级，需要增加适配器。该实现只读取可访问性文本，不修改其他应用。
 - 听写、专注模式等系统动作依赖 macOS 当前版本，无法在无辅助功能权限时完全模拟。设置中可以把这些按钮替换成自定义快捷键或命令。
 - 音乐歌词目前优先读取 Apple Music 当前曲目的歌词；Spotify 与尚未实现的流媒体播放器需要额外 Provider。
-- 当前构建使用 ad-hoc 签名。正式发布时需要 Developer ID 签名、公证与 Keychain 存储 WebDAV 密码。
+- 当前构建使用 ad-hoc 签名。正式发布时需要 Developer ID 签名与公证；WebDAV 密码已经使用 macOS 钥匙串保存。
 
 ## CI 与发布
 
