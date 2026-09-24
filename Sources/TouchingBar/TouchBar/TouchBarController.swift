@@ -46,6 +46,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private var activationObserver: NSObjectProtocol?
     private var contextViews: [UUID: ContextTouchBarView] = [:]
     private var imageViews: [UUID: ImageTouchBarView] = [:]
+    private var petViews: [UUID: CodexPetTouchBarView] = [:]
     private var dualLineLyricViews: [UUID: DualLineLyricsTouchBarView] = [:]
     private var contextConfigurations: [UUID: TouchBarItemConfiguration] = [:]
     private var actionConfigurations: [String: TouchBarItemConfiguration] = [:]
@@ -225,6 +226,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         actionConfigurations.removeAll()
         contextViews.removeAll()
         imageViews.removeAll()
+        petViews.removeAll()
         dualLineLyricViews.removeAll()
         contextConfigurations.removeAll()
         nowPlayingViews.removeAll()
@@ -478,7 +480,10 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         for (index, configuration) in visibleItems.enumerated() {
             let width = widths[index]
             if configuration.contextKey == "lyric", configuration.dualLineLyrics {
-                let view = DualLineLyricsTouchBarView(width: width)
+                let view = DualLineLyricsTouchBarView(
+                    width: width,
+                    animationsEnabled: !store.configuration.effectiveDisableAnimations
+                )
                 view.update(
                     pair: latestNowPlaying?.currentDualLineLyricPair,
                     progress: latestNowPlaying?.currentLyricProgress
@@ -487,8 +492,25 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 contextConfigurations[configuration.id] = configuration
                 scrollView.addContentView(view, width: width)
             } else if configuration.presentation == .image {
-                let view = ImageTouchBarView(path: configuration.imagePath, width: width)
-                imageViews[configuration.id] = view
+                let view: NSView
+                if let petID = configuration.petID,
+                   let pet = CodexPetStore.shared.pet(id: petID) {
+                    let petView = CodexPetTouchBarView(
+                        pet: pet,
+                        width: width,
+                        animationsEnabled: !store.configuration.effectiveDisableAnimations
+                    )
+                    petViews[configuration.id] = petView
+                    view = petView
+                } else {
+                    let imageView = ImageTouchBarView(
+                        path: configuration.imagePath,
+                        width: width,
+                        animates: !store.configuration.effectiveDisableAnimations
+                    )
+                    imageViews[configuration.id] = imageView
+                    view = imageView
+                }
                 contextConfigurations[configuration.id] = configuration
                 scrollView.addContentView(view, width: width)
             } else if configuration.presentation == .context {
@@ -742,6 +764,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 item.label,
                 item.symbolName ?? "",
                 item.imagePath ?? "",
+                item.petID ?? "",
                 item.width.rawValue,
                 item.customWidth.map { String(format: "%.2f", $0) } ?? "",
                 item.isHidden ? "hidden" : "visible",
@@ -769,7 +792,8 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             preset.content.rawValue,
             items,
             adaptiveAvailability,
-            store.configuration.hideTouchBarCloseButton ? "hide-close" : "show-close"
+            store.configuration.hideTouchBarCloseButton ? "hide-close" : "show-close",
+            store.configuration.effectiveDisableAnimations ? "animations-off" : "animations-on"
         ].joined(separator: "::")
     }
 
@@ -1074,32 +1098,32 @@ private final class MarqueeTextField: NSView {
 }
 
 private final class DualLineLyricsTouchBarView: NSView {
-    private let originalLabel = MarqueeTextField()
-    private let secondaryLabel = MarqueeTextField()
+    private let outgoingLabel = MarqueeTextField()
+    private let topLabel = MarqueeTextField()
+    private let bottomLabel = MarqueeTextField()
     private let preferredWidth: CGFloat
+    private let animationsEnabled: Bool
 
-    init(width: CGFloat) {
+    private var currentOriginal = ""
+    private var currentSecondary = ""
+    private var lyricProgress: Double?
+    private var transitionTimer: Timer?
+    private var transitionStartedAt = Date.timeIntervalSinceReferenceDate
+    private let transitionDuration: TimeInterval = 0.46
+
+    init(width: CGFloat, animationsEnabled: Bool) {
         preferredWidth = width
+        self.animationsEnabled = animationsEnabled
         super.init(frame: NSRect(x: 0, y: 0, width: width, height: 30))
+        wantsLayer = true
+        layer?.masksToBounds = true
 
-        originalLabel.font = .systemFont(ofSize: 10, weight: .semibold)
-        originalLabel.textColor = .labelColor
-        secondaryLabel.font = .systemFont(ofSize: 9)
-        secondaryLabel.textColor = .secondaryLabelColor
-
-        let stack = NSStackView(views: [originalLabel, secondaryLabel])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.distribution = .fillEqually
-        stack.spacing = 0
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 5),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -5),
-            stack.topAnchor.constraint(equalTo: topAnchor, constant: 1),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -1)
-        ])
+        [outgoingLabel, topLabel, bottomLabel].forEach(addSubview)
+        outgoingLabel.isHidden = true
+        outgoingLabel.alphaValue = 0
+        topLabel.alphaValue = 1
+        bottomLabel.alphaValue = 1
+        applyStableLayout()
     }
 
     required init?(coder: NSCoder) {
@@ -1110,29 +1134,272 @@ private final class DualLineLyricsTouchBarView: NSView {
         NSSize(width: preferredWidth, height: 30)
     }
 
+    override func layout() {
+        super.layout()
+        if transitionTimer == nil {
+            applyStableLayout()
+        } else {
+            updateTransition(at: transitionProgress)
+        }
+    }
+
     func update(
         pair: (original: String, secondary: String?)?,
         progress: Double?
     ) {
+        lyricProgress = progress
         let original = pair?.original ?? ""
         let secondary = pair?.secondary ?? ""
-        originalLabel.updateText(original, progress: progress)
-        secondaryLabel.isHidden = secondary.isEmpty
-        secondaryLabel.updateText(secondary, progress: progress)
-        if ProcessInfo.processInfo.environment["TOUCHINGBAR_DEBUG"] == "1" {
-            NSLog(
-                "TouchBar dual-line lyric original=%@ secondary=%@",
-                original,
-                secondary.isEmpty ? "none" : secondary
-            )
+
+        if original.isEmpty {
+            stopTransition()
+            currentOriginal = ""
+            currentSecondary = ""
+            outgoingLabel.isHidden = true
+            topLabel.updateText("", progress: nil)
+            bottomLabel.updateText("", progress: nil)
+            return
         }
+
+        if currentOriginal.isEmpty {
+            setStableState(original: original, secondary: secondary)
+            return
+        }
+
+        guard original != currentOriginal || secondary != currentSecondary else {
+            topLabel.updateText(original, progress: progress)
+            bottomLabel.updateText(secondary, progress: progress)
+            return
+        }
+
+        if animationsEnabled {
+            startTransition(to: original, secondary: secondary)
+        } else {
+            setStableState(original: original, secondary: secondary)
+        }
+    }
+
+    deinit {
+        transitionTimer?.invalidate()
+    }
+
+    private var topFrame: NSRect {
+        NSRect(x: 5, y: 15, width: max(1, bounds.width - 10), height: 14)
+    }
+
+    private var bottomFrame: NSRect {
+        NSRect(x: 5, y: 1, width: max(1, bounds.width - 10), height: 13)
+    }
+
+    private var incomingBottomFrame: NSRect {
+        NSRect(x: 5, y: -13, width: max(1, bounds.width - 10), height: 13)
+    }
+
+    private var topFont: NSFont {
+        .systemFont(ofSize: 10, weight: .semibold)
+    }
+
+    private var bottomFont: NSFont {
+        .systemFont(ofSize: 9)
+    }
+
+    private func setStableState(original: String, secondary: String) {
+        stopTransition()
+        currentOriginal = original
+        currentSecondary = secondary
+        outgoingLabel.isHidden = true
+        outgoingLabel.alphaValue = 0
+
+        topLabel.updateText(original, progress: lyricProgress)
+        topLabel.font = topFont
+        topLabel.textColor = .labelColor
+        topLabel.frame = topFrame
+        topLabel.alphaValue = 1
+
+        bottomLabel.updateText(secondary, progress: lyricProgress)
+        bottomLabel.font = bottomFont
+        bottomLabel.textColor = .secondaryLabelColor
+        bottomLabel.frame = bottomFrame
+        bottomLabel.alphaValue = secondary.isEmpty ? 0 : 1
+    }
+
+    private func applyStableLayout() {
+        topLabel.font = topFont
+        topLabel.textColor = .labelColor
+        topLabel.frame = topFrame
+        topLabel.alphaValue = 1
+
+        bottomLabel.font = bottomFont
+        bottomLabel.textColor = .secondaryLabelColor
+        bottomLabel.frame = bottomFrame
+        bottomLabel.alphaValue = currentSecondary.isEmpty ? 0 : 1
+    }
+
+    private func startTransition(to original: String, secondary: String) {
+        outgoingLabel.updateText(currentOriginal, progress: lyricProgress)
+        outgoingLabel.font = topFont
+        outgoingLabel.textColor = .labelColor
+        outgoingLabel.frame = topFrame
+        outgoingLabel.alphaValue = 1
+        outgoingLabel.isHidden = false
+
+        topLabel.updateText(original, progress: lyricProgress)
+        topLabel.font = bottomFont
+        topLabel.textColor = .secondaryLabelColor
+        topLabel.frame = bottomFrame
+        topLabel.alphaValue = 1
+
+        bottomLabel.updateText(secondary, progress: lyricProgress)
+        bottomLabel.font = bottomFont
+        bottomLabel.textColor = .secondaryLabelColor
+        bottomLabel.frame = incomingBottomFrame
+        bottomLabel.alphaValue = secondary.isEmpty ? 0 : 0.08
+
+        currentOriginal = original
+        currentSecondary = secondary
+        transitionStartedAt = Date.timeIntervalSinceReferenceDate
+        stopTransition()
+        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+            self?.tickTransition()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        transitionTimer = timer
+    }
+
+    private func tickTransition() {
+        let progress = transitionProgress
+        if progress >= 1 {
+            setStableState(original: currentOriginal, secondary: currentSecondary)
+        } else {
+            updateTransition(at: progress)
+        }
+    }
+
+    private var transitionProgress: CGFloat {
+        let elapsed = Date.timeIntervalSinceReferenceDate - transitionStartedAt
+        return CGFloat(min(1, max(0, elapsed / transitionDuration)))
+    }
+
+    private func updateTransition(at rawProgress: CGFloat) {
+        let progress = smoothStep(rawProgress)
+        let topEnd = topFrame
+        let bottomEnd = bottomFrame
+        let bottomStart = incomingBottomFrame
+
+        outgoingLabel.frame.origin.y = topEnd.minY + 20 * progress
+        outgoingLabel.font = .systemFont(ofSize: 10 - 2 * progress, weight: .semibold)
+        outgoingLabel.textColor = interpolate(.labelColor, .secondaryLabelColor, progress: progress)
+        outgoingLabel.alphaValue = 1 - progress
+
+        topLabel.frame.origin.y = bottomEnd.minY + (topEnd.minY - bottomEnd.minY) * progress
+        topLabel.font = .systemFont(ofSize: 9 + progress, weight: progress >= 0.55 ? .semibold : .regular)
+        topLabel.textColor = interpolate(.secondaryLabelColor, .labelColor, progress: progress)
+        topLabel.alphaValue = 1
+
+        bottomLabel.frame.origin.y = bottomStart.minY + (bottomEnd.minY - bottomStart.minY) * progress
+        bottomLabel.font = bottomFont
+        bottomLabel.textColor = .secondaryLabelColor
+        bottomLabel.alphaValue = currentSecondary.isEmpty ? 0 : 0.08 + 0.92 * progress
+    }
+
+    private func stopTransition() {
+        transitionTimer?.invalidate()
+        transitionTimer = nil
+    }
+
+    private func smoothStep(_ value: CGFloat) -> CGFloat {
+        let clamped = min(1, max(0, value))
+        return clamped * clamped * (3 - 2 * clamped)
+    }
+
+    private func interpolate(_ from: NSColor, _ to: NSColor, progress: CGFloat) -> NSColor {
+        let start = from.usingColorSpace(.deviceRGB) ?? from
+        let end = to.usingColorSpace(.deviceRGB) ?? to
+        let t = min(1, max(0, progress))
+        return NSColor(
+            red: start.redComponent + (end.redComponent - start.redComponent) * t,
+            green: start.greenComponent + (end.greenComponent - start.greenComponent) * t,
+            blue: start.blueComponent + (end.blueComponent - start.blueComponent) * t,
+            alpha: start.alphaComponent + (end.alphaComponent - start.alphaComponent) * t
+        )
+    }
+}
+
+private final class CodexPetTouchBarView: NSView {
+    private let imageView = NSImageView()
+    private let animationsEnabled: Bool
+    private let frameDuration: TimeInterval
+    private var frames: [NSImage] = []
+    private var timer: Timer?
+    private var frameIndex = 0
+
+    init(pet: CodexPet, width: CGFloat, animationsEnabled: Bool) {
+        self.animationsEnabled = animationsEnabled
+        frameDuration = pet.frameDuration
+        super.init(frame: NSRect(x: 0, y: 0, width: width, height: 30))
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+
+        imageView.frame = bounds.insetBy(dx: 1, dy: 1)
+        imageView.autoresizingMask = [.width, .height]
+        imageView.imageAlignment = .alignCenter
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        imageView.imageFrameStyle = .none
+        addSubview(imageView)
+
+        if let spritesheet = try? CodexPetSpritesheet(pet: pet) {
+            frames = spritesheet.frames().map {
+                NSImage(cgImage: $0, size: NSSize(width: $0.width, height: $0.height))
+            }
+        }
+        imageView.image = frames.first
+        toolTip = pet.displayName
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: frame.width, height: 30)
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            stopAnimation()
+        } else if animationsEnabled && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            startAnimation()
+        }
+    }
+
+    deinit {
+        timer?.invalidate()
+    }
+
+    private func startAnimation() {
+        guard timer == nil, frames.count > 1 else { return }
+        let timer = Timer(timeInterval: frameDuration, repeats: true) { [weak self] _ in
+            guard let self, !self.frames.isEmpty else { return }
+            self.frameIndex = (self.frameIndex + 1) % self.frames.count
+            self.imageView.image = self.frames[self.frameIndex]
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+
+    private func stopAnimation() {
+        timer?.invalidate()
+        timer = nil
     }
 }
 
 private final class ImageTouchBarView: NSView {
     private let imageView = NSImageView()
+    private let animates: Bool
 
-    init(path: String?, width: CGFloat) {
+    init(path: String?, width: CGFloat, animates: Bool) {
+        self.animates = animates
         super.init(frame: NSRect(x: 0, y: 0, width: width, height: 30))
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
@@ -1146,7 +1413,7 @@ private final class ImageTouchBarView: NSView {
 
         if let path, !path.isEmpty, let image = NSImage(contentsOfFile: path) {
             imageView.image = image
-            imageView.animates = true
+            imageView.animates = animates
             toolTip = path
         } else {
             let placeholder = NSImage(systemSymbolName: "photo", accessibilityDescription: "图片")

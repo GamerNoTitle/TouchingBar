@@ -292,7 +292,7 @@ private struct CustomPresetEditor: View {
                     List(selection: $selectedItemID) {
                         ForEach(preset.items) { item in
                             HStack(spacing: 8) {
-                                Image(systemName: item.presentation == .image ? "photo" : (item.symbolName ?? "circle"))
+                                Image(systemName: item.presentation == .image ? "pawprint.fill" : (item.symbolName ?? "circle"))
                                     .frame(width: 18)
                                 Text(item.label)
                                 if item.isHidden {
@@ -323,7 +323,7 @@ private struct CustomPresetEditor: View {
                             case .context:
                                 ContextItemEditor(presetID: presetID, itemID: item.id, item: item)
                             case .image:
-                                ImageItemEditor(presetID: presetID, itemID: item.id, item: item)
+                                PetItemEditor(presetID: presetID, itemID: item.id, item: item)
                             case .button, .label:
                                 ActionItemEditor(presetID: presetID, itemID: item.id, item: item)
                             }
@@ -364,9 +364,9 @@ private struct CustomPresetEditor: View {
                 }
             }
 
-            Section("图片") {
-                Button("图片 / 动图") {
-                    addImage()
+            Section("宠物") {
+                Button("宠物") {
+                    addPet()
                 }
             }
 
@@ -488,12 +488,12 @@ private struct CustomPresetEditor: View {
         )
     }
 
-    private func addImage() {
+    private func addPet() {
         add(
             TouchBarItemConfiguration(
-                label: "图片",
-                symbolName: "photo",
-                width: .regular,
+                label: "宠物",
+                symbolName: "pawprint.fill",
+                width: .compact,
                 presentation: .image
             )
         )
@@ -523,7 +523,11 @@ private struct CustomPresetEditor: View {
 
     private func componentDescription(_ item: TouchBarItemConfiguration) -> String {
         if item.presentation == .image {
-            return "图片 / 动图"
+            if let petID = item.petID,
+               let pet = CodexPetStore.shared.pet(id: petID) {
+                return pet.displayName
+            }
+            return item.imagePath == nil ? "宠物" : "宠物（本地图片）"
         }
         if item.presentation == .context {
             return contextTitle(item.contextKey)
@@ -1270,24 +1274,45 @@ private struct ActionItemEditor: View {
     }
 }
 
-private struct ImageItemEditor: View {
+private struct PetItemEditor: View {
     @EnvironmentObject private var store: AppStore
     let presetID: UUID
     let itemID: UUID
     let item: TouchBarItemConfiguration
+    @State private var installedPets: [CodexPet] = []
+    @State private var errorMessage: String?
 
     var body: some View {
         Form {
             TextField("名称", text: binding(\.label))
 
-            HStack {
-                TextField("图片路径", text: pathBinding)
-                Button("选择…") {
-                    chooseImage()
+            Picker("已安装宠物", selection: petBinding) {
+                Text("未选择").tag("")
+                ForEach(installedPets) { pet in
+                    Text(pet.displayName).tag(pet.id)
                 }
             }
 
-            if let previewImage {
+            HStack {
+                Button("安装 Codex 宠物…") {
+                    installPetFromFolder()
+                }
+                Button("扫描并安装 ~/.codex/pets") {
+                    installExternalPets()
+                }
+            }
+
+            if let selectedPet {
+                HStack(spacing: 10) {
+                    PetItemPreview(image: previewImage(for: selectedPet))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(selectedPet.displayName)
+                        Text("\(selectedPet.id) · \(selectedPet.columns)×\(selectedPet.rows) 帧网格")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } else if let previewImage {
                 HStack(spacing: 10) {
                     Image(nsImage: previewImage)
                         .resizable()
@@ -1302,13 +1327,26 @@ private struct ImageItemEditor: View {
                         .truncationMode(.middle)
                 }
             } else {
-                Label("尚未选择可读取的图片", systemImage: "photo")
+                Label("尚未选择宠物或图片", systemImage: "pawprint")
                     .foregroundStyle(.secondary)
             }
 
-            Text("支持 PNG、JPEG、GIF、WebP；GIF 会播放动画。Codex 宠物建议选择 gif/1.gif 这类单动作文件，不要直接选择整张 spritesheet.webp。")
+            if let errorMessage {
+                Text(errorMessage)
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+            }
+
+            Text("Codex 宠物包需要 pet.json 和精灵图；官方格式为 8×9，兼容 8×11。也可以继续使用本地 PNG、JPEG、GIF 或 WebP。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            HStack {
+                TextField("图片路径", text: pathBinding)
+                Button("选择…") {
+                    chooseImage()
+                }
+            }
 
             WidthEditor(presetID: presetID, itemID: itemID, item: item)
 
@@ -1327,6 +1365,9 @@ private struct ImageItemEditor: View {
         .formStyle(.columns)
         .padding(12)
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+        .onAppear {
+            refreshInstalledPets()
+        }
     }
 
     private var currentItem: TouchBarItemConfiguration? {
@@ -1335,9 +1376,31 @@ private struct ImageItemEditor: View {
             .items.first(where: { $0.id == itemID })
     }
 
+    private var selectedPet: CodexPet? {
+        guard let id = currentItem?.petID ?? item.petID else { return nil }
+        return installedPets.first(where: { $0.id == id }) ?? CodexPetStore.shared.pet(id: id)
+    }
+
     private var previewImage: NSImage? {
         guard let path = currentItem?.imagePath ?? item.imagePath, !path.isEmpty else { return nil }
         return NSImage(contentsOfFile: path)
+    }
+
+    private var petBinding: Binding<String> {
+        Binding(
+            get: { currentItem?.petID ?? item.petID ?? "" },
+            set: { value in
+                guard var updated = currentItem else { return }
+                updated.petID = value.isEmpty ? nil : value
+                if !value.isEmpty {
+                    updated.imagePath = nil
+                    if let pet = installedPets.first(where: { $0.id == value }) {
+                        updated.label = pet.displayName
+                    }
+                }
+                store.updateItem(presetID: presetID, item: updated)
+            }
+        )
     }
 
     private var pathBinding: Binding<String> {
@@ -1346,6 +1409,9 @@ private struct ImageItemEditor: View {
             set: { value in
                 guard var updated = currentItem else { return }
                 updated.imagePath = value.isEmpty ? nil : value
+                if !value.isEmpty {
+                    updated.petID = nil
+                }
                 store.updateItem(presetID: presetID, item: updated)
             }
         )
@@ -1373,6 +1439,56 @@ private struct ImageItemEditor: View {
         )
     }
 
+    private func refreshInstalledPets() {
+        installedPets = CodexPetStore.shared.installedPets()
+    }
+
+    private func installPetFromFolder() {
+        let panel = NSOpenPanel()
+        panel.title = "选择 Codex 宠物目录"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "安装宠物"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let installed = try CodexPetStore.shared.install(from: url, replacing: true)
+            errorMessage = nil
+            refreshInstalledPets()
+            if let first = installed.first {
+                select(petID: first.id, label: first.displayName)
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func installExternalPets() {
+        let external = CodexPetStore.shared.externalPets()
+        guard !external.isEmpty else {
+            errorMessage = "未在 ~/.codex/pets 发现 Codex 宠物"
+            return
+        }
+        do {
+            let installed = try external.map { try CodexPetStore.shared.install($0, replacing: true) }
+            errorMessage = nil
+            refreshInstalledPets()
+            if let first = installed.first {
+                select(petID: first.id, label: first.displayName)
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func select(petID: String, label: String) {
+        guard var updated = currentItem else { return }
+        updated.petID = petID
+        updated.imagePath = nil
+        updated.label = label
+        store.updateItem(presetID: presetID, item: updated)
+    }
+
     private func chooseImage() {
         let panel = NSOpenPanel()
         panel.title = "选择 Touch Bar 图片或动图"
@@ -1384,8 +1500,37 @@ private struct ImageItemEditor: View {
               var updated = currentItem else {
             return
         }
+        updated.petID = nil
         updated.imagePath = url.path
         store.updateItem(presetID: presetID, item: updated)
+    }
+
+    private func previewImage(for pet: CodexPet) -> NSImage? {
+        guard let spritesheet = try? CodexPetSpritesheet(pet: pet),
+              let frame = spritesheet.frames(count: 1).first else {
+            return nil
+        }
+        return NSImage(cgImage: frame, size: NSSize(width: frame.width, height: frame.height))
+    }
+}
+
+private struct PetItemPreview: View {
+    let image: NSImage?
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(nsImage: image)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+            } else {
+                Image(systemName: "pawprint")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(width: 48, height: 38)
+        .background(Color.black.opacity(0.12), in: RoundedRectangle(cornerRadius: 5))
     }
 }
 

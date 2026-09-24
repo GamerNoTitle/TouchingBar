@@ -10,6 +10,8 @@ struct SettingsRootView: View {
                 .tabItem { Text("通用") }
             PresetsSettingsView()
                 .tabItem { Text("Touch Bar 配置") }
+            PetsSettingsView()
+                .tabItem { Text("宠物") }
             IntegrationsSettingsView()
                 .tabItem { Text("集成") }
             BackupSettingsView()
@@ -74,13 +76,21 @@ struct GeneralSettingsView: View {
         )
     }
 
+    private var disableAnimationsBinding: Binding<Bool> {
+        Binding(
+            get: { store.configuration.effectiveDisableAnimations },
+            set: { value in store.updateConfiguration { $0.effectiveDisableAnimations = value } }
+        )
+    }
+
     var body: some View {
         Form {
             Section {
                 Toggle("在菜单栏显示 TouchingBar", isOn: menuBarBinding)
                 Toggle("静默启动", isOn: silentLaunchBinding)
+                Toggle("关闭动态效果", isOn: disableAnimationsBinding)
                 Toggle("隐藏 Touch Bar 关闭按钮", isOn: closeBoxBinding)
-                Text("静默启动会在启动或重新打开 TouchingBar 时不自动打开设置窗口，仍可从菜单栏打开。")
+                Text("静默启动会在启动或重新打开 TouchingBar 时不自动打开设置窗口，仍可从菜单栏打开。关闭动态效果后，宠物与双行歌词使用静态切换。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text("TouchingBar 运行期间会持续占用 Touch Bar；不使用请从菜单栏退出 TouchingBar。")

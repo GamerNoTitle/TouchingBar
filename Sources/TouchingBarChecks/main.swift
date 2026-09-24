@@ -1,4 +1,6 @@
+import CoreGraphics
 import Foundation
+import ImageIO
 import Network
 import TouchingBarCore
 
@@ -8,6 +10,7 @@ struct TouchingBarChecks {
         try checkBuiltInPresets()
         try checkBackupRoundTrip()
         try checkConfigurationNormalization()
+        try checkCodexPetInstallation()
         try checkImageComponentRoundTrip()
         try checkMetricsPresetMigration()
         try checkMetricsHistoryRange()
@@ -75,6 +78,7 @@ struct TouchingBarChecks {
         defer { try? FileManager.default.removeItem(at: directory) }
 
         try expect(AppConfiguration().effectiveSilentLaunch, "silent launch is enabled by default")
+        try expect(!AppConfiguration().effectiveDisableAnimations, "animations are enabled by default")
 
         let store = ConfigurationStore(fileURL: file)
         var configuration = AppConfiguration()
@@ -129,12 +133,95 @@ struct TouchingBarChecks {
         )
     }
 
+    private static func checkCodexPetInstallation() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let source = root.appendingPathComponent("source-pet", isDirectory: true)
+        let support = root.appendingPathComponent("support", isDirectory: true)
+        let codexPets = root.appendingPathComponent("codex-pets", isDirectory: true)
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let width = 8 * 48
+        let height = 11 * 52
+        let spritesheetURL = source.appendingPathComponent("sheet.png")
+        try makePNG(width: width, height: height, at: spritesheetURL)
+
+        let manifest: [String: Any] = [
+            "id": "test-pet",
+            "displayName": "Test Pet",
+            "description": "Synthetic pet",
+            "spriteVersionNumber": 2,
+            "spritesheetPath": "sheet.png"
+        ]
+        try JSONSerialization.data(withJSONObject: manifest)
+            .write(to: source.appendingPathComponent("pet.json"), options: .atomic)
+
+        let triggers: [String: Any] = [
+            "defaultState": "idle",
+            "states": ["idle": ["row": 0, "frameDurationMs": 80]]
+        ]
+        try JSONSerialization.data(withJSONObject: triggers)
+            .write(to: source.appendingPathComponent("animation-triggers.json"), options: .atomic)
+
+        let store = CodexPetStore(
+            applicationSupportDirectory: support,
+            codexPetsDirectory: codexPets
+        )
+        let installed = try store.install(from: source)
+        try expect(installed.count == 1, "Codex pet installer finds one pet")
+        guard let pet = installed.first else {
+            throw CheckFailure(message: "Codex pet installation returned no pet")
+        }
+        try expect(pet.id == "test-pet", "Codex pet ID is parsed")
+        try expect(pet.displayName == "Test Pet", "Codex pet display name is parsed")
+        try expect(pet.columns == 8 && pet.rows == 11, "Codex pet v2 grid is detected")
+        try expect(pet.frameWidth == 48 && pet.frameHeight == 52, "Codex pet frame size is detected")
+        try expect(abs(pet.frameDuration - 0.08) < 0.001, "Codex pet animation timing is parsed")
+        try expect(store.installedPets().count == 1, "Codex pet is copied into TouchingBar support")
+        let spritesheet = try CodexPetSpritesheet(pet: pet)
+        try expect(spritesheet.frames().count == 8, "Codex pet frame row can be cropped")
+
+        try store.remove(petID: pet.id)
+        try expect(store.installedPets().isEmpty, "Codex pet can be removed")
+    }
+
+    private static func makePNG(width: Int, height: Int, at url: URL) throws {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            throw CheckFailure(message: "Could not create pet spritesheet context")
+        }
+        context.setFillColor(CGColor(red: 1, green: 0, blue: 1, alpha: 0.8))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        guard let image = context.makeImage(),
+              let destination = CGImageDestinationCreateWithURL(
+                url as CFURL,
+                "public.png" as CFString,
+                1,
+                nil
+              ) else {
+            throw CheckFailure(message: "Could not create pet spritesheet PNG")
+        }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else {
+            throw CheckFailure(message: "Could not finalize pet spritesheet PNG")
+        }
+    }
+
     private static func checkImageComponentRoundTrip() throws {
         let service = BackupService()
         let imageItem = TouchBarItemConfiguration(
             label: "宠物",
             symbolName: "photo",
             imagePath: "/tmp/xiaolemi.gif",
+            petID: "xiaolemi",
             width: .regular,
             presentation: .image
         )
@@ -154,6 +241,7 @@ struct TouchingBarChecks {
             .items.first
         try expect(restoredItem?.presentation == .image, "image component presentation round-trips")
         try expect(restoredItem?.imagePath == "/tmp/xiaolemi.gif", "image component path round-trips")
+        try expect(restoredItem?.petID == "xiaolemi", "pet component ID round-trips")
     }
 
     private static func checkMetricsPresetMigration() throws {

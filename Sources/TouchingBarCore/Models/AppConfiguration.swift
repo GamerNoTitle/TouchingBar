@@ -51,6 +51,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
     public var alwaysOccupyTouchBar: Bool
     public var hideTouchBarCloseButton: Bool
     public var silentLaunch: Bool?
+    public var disableAnimations: Bool?
     public var menuBar: MenuBarSettings
     public var messages: MessageSettings
     public var webDAV: WebDAVSettings
@@ -66,6 +67,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         alwaysOccupyTouchBar: Bool = true,
         hideTouchBarCloseButton: Bool = true,
         silentLaunch: Bool = true,
+        disableAnimations: Bool = false,
         menuBar: MenuBarSettings = MenuBarSettings(),
         messages: MessageSettings = MessageSettings(),
         webDAV: WebDAVSettings = WebDAVSettings(),
@@ -80,6 +82,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         self.alwaysOccupyTouchBar = alwaysOccupyTouchBar
         self.hideTouchBarCloseButton = hideTouchBarCloseButton
         self.silentLaunch = silentLaunch
+        self.disableAnimations = disableAnimations
         self.menuBar = menuBar
         self.messages = messages
         self.webDAV = webDAV
@@ -95,6 +98,11 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
     public var effectiveSilentLaunch: Bool {
         get { silentLaunch ?? true }
         set { silentLaunch = newValue }
+    }
+
+    public var effectiveDisableAnimations: Bool {
+        get { disableAnimations ?? false }
+        set { disableAnimations = newValue }
     }
 
     public var effectiveMetricsHistorySeconds: Int {
