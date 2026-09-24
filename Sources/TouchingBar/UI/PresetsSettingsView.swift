@@ -528,6 +528,189 @@ private struct CustomPresetEditor: View {
     }
 }
 
+private struct SymbolChoice: Identifiable {
+    let id: String
+    let title: String
+    let keywords: String
+    let category: String
+}
+
+private struct IconPickerView: View {
+    @Binding var symbolName: String
+    @Binding var isPresented: Bool
+
+    @State private var searchText = ""
+    @State private var selectedCategory = "全部"
+
+    private static let choices: [SymbolChoice] = [
+        .init(id: "circle", title: "圆点", keywords: "圆 图标 通用", category: "常用"),
+        .init(id: "square", title: "方块", keywords: "方 图标 通用", category: "常用"),
+        .init(id: "star.fill", title: "星标", keywords: "收藏 星 常用", category: "常用"),
+        .init(id: "heart.fill", title: "喜欢", keywords: "爱心 收藏", category: "常用"),
+        .init(id: "bolt.fill", title: "闪电", keywords: "能量 快速", category: "常用"),
+        .init(id: "gearshape.fill", title: "设置", keywords: "齿轮 设置 配置", category: "常用"),
+        .init(id: "plus", title: "加号", keywords: "增加 添加", category: "常用"),
+        .init(id: "minus", title: "减号", keywords: "减少 删除", category: "常用"),
+        .init(id: "checkmark", title: "确认", keywords: "完成 对勾", category: "常用"),
+        .init(id: "xmark", title: "关闭", keywords: "取消 叉", category: "常用"),
+        .init(id: "info.circle", title: "信息", keywords: "说明 提示", category: "常用"),
+        .init(id: "questionmark.circle", title: "帮助", keywords: "问题 提示", category: "常用"),
+
+        .init(id: "backward.fill", title: "上一曲", keywords: "音乐 媒体 后退", category: "媒体"),
+        .init(id: "playpause.fill", title: "播放暂停", keywords: "音乐 媒体 播放", category: "媒体"),
+        .init(id: "forward.fill", title: "下一曲", keywords: "音乐 媒体 前进", category: "媒体"),
+        .init(id: "play.fill", title: "播放", keywords: "音乐 媒体", category: "媒体"),
+        .init(id: "pause.fill", title: "暂停", keywords: "音乐 媒体", category: "媒体"),
+        .init(id: "speaker.wave.3.fill", title: "音量", keywords: "声音 音量 扬声器", category: "媒体"),
+        .init(id: "speaker.wave.1.fill", title: "音量低", keywords: "声音 音量 小", category: "媒体"),
+        .init(id: "speaker.slash.fill", title: "静音", keywords: "声音 静音 关闭", category: "媒体"),
+        .init(id: "music.note", title: "音乐", keywords: "歌曲 音符", category: "媒体"),
+        .init(id: "quote.bubble", title: "歌词", keywords: "歌词 文本 气泡", category: "媒体"),
+        .init(id: "waveform", title: "波形", keywords: "音频 播放 波动", category: "媒体"),
+
+        .init(id: "lock.fill", title: "锁屏", keywords: "锁定 安全 锁", category: "系统"),
+        .init(id: "rectangle.3.group", title: "调度中心", keywords: "窗口 任务 调度", category: "系统"),
+        .init(id: "sun.min", title: "亮度减", keywords: "屏幕 亮度 太阳", category: "系统"),
+        .init(id: "sun.max", title: "亮度增", keywords: "屏幕 亮度 太阳", category: "系统"),
+        .init(id: "light.max", title: "键盘灯开", keywords: "键盘 背光 灯", category: "系统"),
+        .init(id: "light.min", title: "键盘灯关", keywords: "键盘 背光 灯", category: "系统"),
+        .init(id: "moon.fill", title: "专注", keywords: "月亮 勿扰 专注", category: "系统"),
+        .init(id: "display", title: "显示器", keywords: "屏幕 显示", category: "系统"),
+        .init(id: "keyboard", title: "键盘", keywords: "输入 快捷键", category: "系统"),
+        .init(id: "command", title: "Command", keywords: "快捷键 命令", category: "系统"),
+        .init(id: "power", title: "电源", keywords: "关机 开机", category: "系统"),
+        .init(id: "magnifyingglass", title: "搜索", keywords: "查找 放大镜", category: "系统"),
+
+        .init(id: "cpu", title: "CPU", keywords: "处理器 性能 资源", category: "资源"),
+        .init(id: "memorychip", title: "内存", keywords: "内存 资源", category: "资源"),
+        .init(id: "internaldrive", title: "硬盘", keywords: "磁盘 存储", category: "资源"),
+        .init(id: "thermometer.medium", title: "温度", keywords: "温度 发热 传感器", category: "资源"),
+        .init(id: "fan", title: "风扇", keywords: "散热 风扇", category: "资源"),
+        .init(id: "arrow.down.circle", title: "下载", keywords: "网络 下载 速度", category: "资源"),
+        .init(id: "arrow.up.circle", title: "上传", keywords: "网络 上传 速度", category: "资源"),
+        .init(id: "chart.xyaxis.line", title: "图表", keywords: "趋势 监控 折线", category: "资源"),
+        .init(id: "gauge.medium", title: "仪表", keywords: "性能 速度", category: "资源"),
+        .init(id: "network", title: "网络", keywords: "网速 连接", category: "资源"),
+        .init(id: "wifi", title: "Wi-Fi", keywords: "网络 无线", category: "资源"),
+        .init(id: "battery.100", title: "电池", keywords: "电量 电源", category: "资源"),
+
+        .init(id: "chevron.left.forwardslash.chevron.right", title: "代码", keywords: "开发 代码", category: "开发"),
+        .init(id: "terminal", title: "终端", keywords: "命令行 shell", category: "开发"),
+        .init(id: "hammer", title: "构建", keywords: "编译 构建 工具", category: "开发"),
+        .init(id: "wrench.and.screwdriver", title: "工具", keywords: "修复 工具", category: "开发"),
+        .init(id: "shippingbox", title: "包", keywords: "依赖 软件包", category: "开发"),
+        .init(id: "arrow.triangle.branch", title: "分支", keywords: "git 分支", category: "开发"),
+        .init(id: "swift", title: "Swift", keywords: "swift 语言", category: "开发"),
+        .init(id: "curlybraces", title: "花括号", keywords: "代码 json", category: "开发"),
+        .init(id: "doc.text", title: "文档", keywords: "文件 文本", category: "开发"),
+        .init(id: "list.bullet", title: "列表", keywords: "清单 列表", category: "开发"),
+
+        .init(id: "person.crop.circle", title: "用户", keywords: "agent 角色 用户", category: "Agent"),
+        .init(id: "text.bubble", title: "消息", keywords: "agent 对话 文本", category: "Agent"),
+        .init(id: "circle.dashed", title: "状态", keywords: "agent 进行中 状态", category: "Agent"),
+        .init(id: "timer", title: "耗时", keywords: "agent 计时 时间", category: "Agent"),
+        .init(id: "rectangle.stack", title: "会话", keywords: "agent 会话 列表", category: "Agent"),
+        .init(id: "sparkles", title: "智能", keywords: "agent ai 生成", category: "Agent"),
+        .init(id: "brain.head.profile", title: "思考", keywords: "agent ai 思考", category: "Agent"),
+        .init(id: "bolt.horizontal", title: "活动", keywords: "agent 动作 活动", category: "Agent"),
+
+        .init(id: "message.badge", title: "未读消息", keywords: "消息 聊天 角标", category: "通信"),
+        .init(id: "envelope.fill", title: "邮件", keywords: "邮件 信封", category: "通信"),
+        .init(id: "phone.fill", title: "电话", keywords: "电话 通话", category: "通信"),
+        .init(id: "video.fill", title: "视频", keywords: "视频 通话", category: "通信"),
+        .init(id: "bell.fill", title: "通知", keywords: "提醒 通知", category: "通信"),
+        .init(id: "at", title: "@", keywords: "提及 邮件", category: "通信"),
+        .init(id: "paperplane.fill", title: "发送", keywords: "发送 消息", category: "通信")
+    ]
+
+    private var categories: [String] {
+        ["全部", "常用", "媒体", "系统", "资源", "开发", "Agent", "通信"]
+    }
+
+    private var filteredChoices: [SymbolChoice] {
+        Self.choices.filter { choice in
+            let matchesCategory = selectedCategory == "全部" || choice.category == selectedCategory
+            guard matchesCategory else { return false }
+            let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !query.isEmpty else { return true }
+            return choice.title.lowercased().contains(query)
+                || choice.id.lowercased().contains(query)
+                || choice.keywords.lowercased().contains(query)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("选择图标").font(.title3.bold())
+                Spacer()
+                Button("完成") { isPresented = false }
+                    .keyboardShortcut(.cancelAction)
+            }
+
+            TextField("搜索图标，例如：播放、音量、CPU、锁屏", text: $searchText)
+                .textFieldStyle(.roundedBorder)
+
+            Picker("分类", selection: $selectedCategory) {
+                ForEach(categories, id: \.self) { category in
+                    Text(category).tag(category)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            ScrollView {
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 66), spacing: 10)],
+                    spacing: 10
+                ) {
+                    ForEach(filteredChoices) { choice in
+                        Button {
+                            symbolName = choice.id
+                            isPresented = false
+                        } label: {
+                            VStack(spacing: 6) {
+                                Image(systemName: choice.id)
+                                    .font(.system(size: 23, weight: .medium))
+                                Text(choice.title)
+                                    .font(.caption2)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.75)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 62)
+                            .padding(4)
+                            .background(
+                                symbolName == choice.id
+                                    ? Color.accentColor.opacity(0.18)
+                                    : Color.clear,
+                                in: RoundedRectangle(cornerRadius: 8)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .help(choice.id)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+
+            HStack {
+                Text(symbolName.isEmpty ? "当前：无图标" : "当前：\(symbolName)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer()
+                Button("使用当前值") { isPresented = false }
+                Button("清空图标", role: .destructive) {
+                    symbolName = ""
+                    isPresented = false
+                }
+            }
+        }
+        .padding(16)
+        .frame(width: 620, height: 500)
+    }
+}
+
 private struct ActionItemsEditor: View {
     @EnvironmentObject private var store: AppStore
     let presetID: UUID
@@ -609,12 +792,39 @@ private struct ActionItemEditor: View {
     let presetID: UUID
     let itemID: UUID
     let item: TouchBarItemConfiguration
+    @State private var showingIconPicker = false
 
     var body: some View {
         Form {
             TextField("名称", text: binding(\.label))
-            HStack {
-                TextField("SF Symbol", text: optionalBinding(\.symbolName))
+            HStack(spacing: 8) {
+                Button {
+                    showingIconPicker = true
+                } label: {
+                    HStack(spacing: 7) {
+                        Image(systemName: displaySymbolName)
+                            .font(.system(size: 16, weight: .semibold))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("选择图标")
+                            Text(displaySymbolName)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+                    .frame(minWidth: 150, alignment: .leading)
+                }
+                .buttonStyle(.bordered)
+                .help("从图标库中选择，不需要知道 SF Symbol 名称")
+                .sheet(isPresented: $showingIconPicker) {
+                    IconPickerView(
+                        symbolName: optionalBinding(\.symbolName),
+                        isPresented: $showingIconPicker
+                    )
+                }
+
+                TextField("也可手动输入 SF Symbol", text: optionalBinding(\.symbolName))
+                    .frame(minWidth: 180)
                 Picker("宽度", selection: binding(\.width)) {
                     Text("紧凑").tag(TouchBarItemWidth.compact)
                     Text("常规").tag(TouchBarItemWidth.regular)
@@ -641,6 +851,11 @@ private struct ActionItemEditor: View {
         .formStyle(.columns)
         .padding(12)
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var displaySymbolName: String {
+        let name = currentItem?.symbolName ?? item.symbolName ?? ""
+        return name.isEmpty ? "circle" : name
     }
 
     @ViewBuilder
