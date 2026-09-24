@@ -851,7 +851,7 @@ private final class MarqueeTextField: NSView {
         didSet {
             invalidateIntrinsicContentSize()
             if let timelineProgress {
-                updateOffset(for: timelineProgress)
+                updateTimelineTarget(for: timelineProgress)
             }
             needsDisplay = true
         }
@@ -865,7 +865,10 @@ private final class MarqueeTextField: NSView {
     private var timer: Timer?
     private var pauseUntil = Date.distantPast
     private var timelineProgress: Double?
+    private var timelineTargetOffset: CGFloat = 0
+    private var lastFrameTime = Date.timeIntervalSinceReferenceDate
     private let loopGap: CGFloat = 18
+    private let loopSpeed: CGFloat = 26
 
     override var isFlipped: Bool { false }
 
@@ -884,8 +887,11 @@ private final class MarqueeTextField: NSView {
         if let progress {
             let clamped = min(1, max(0, progress))
             timelineProgress = clamped
-            updateOffset(for: clamped)
-            stopAnimation()
+            updateTimelineTarget(for: clamped)
+            if changed {
+                offset = timelineTargetOffset
+            }
+            startAnimationIfNeeded()
         } else {
             timelineProgress = nil
             if changed {
@@ -900,7 +906,7 @@ private final class MarqueeTextField: NSView {
         super.viewDidMoveToWindow()
         if window == nil {
             stopAnimation()
-        } else if timelineProgress == nil {
+        } else {
             startAnimationIfNeeded()
         }
     }
@@ -908,10 +914,9 @@ private final class MarqueeTextField: NSView {
     override func layout() {
         super.layout()
         if let timelineProgress {
-            updateOffset(for: timelineProgress)
-        } else {
-            startAnimationIfNeeded()
+            updateTimelineTarget(for: timelineProgress)
         }
+        startAnimationIfNeeded()
         needsDisplay = true
     }
 
@@ -949,26 +954,31 @@ private final class MarqueeTextField: NSView {
     private func resetLoop() {
         offset = 0
         pauseUntil = Date().addingTimeInterval(0.6)
+        lastFrameTime = Date.timeIntervalSinceReferenceDate
         needsDisplay = true
         startAnimationIfNeeded()
     }
 
-    private func updateOffset(for progress: Double) {
+    private func updateTimelineTarget(for progress: Double) {
         let overflow = max(0, textWidth - bounds.width)
-        offset = -overflow * CGFloat(min(1, max(0, progress)))
+        timelineTargetOffset = -overflow * CGFloat(min(1, max(0, progress)))
     }
 
     private func startAnimationIfNeeded() {
-        guard timelineProgress == nil,
-              window != nil,
-              bounds.width > 1,
-              textWidth > bounds.width + 1 else {
+        guard window != nil, bounds.width > 1, textWidth > bounds.width + 1 else {
+            stopAnimation()
+            return
+        }
+        if timelineProgress == nil {
+            // Loop mode always animates while the text is wider than the view.
+        } else if abs(timelineTargetOffset - offset) < 0.25 {
             stopAnimation()
             return
         }
         guard timer == nil else { return }
 
-        let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
+        lastFrameTime = Date.timeIntervalSinceReferenceDate
+        let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
             self?.tick()
         }
         RunLoop.main.add(timer, forMode: .common)
@@ -981,15 +991,30 @@ private final class MarqueeTextField: NSView {
     }
 
     private func tick() {
-        guard timelineProgress == nil,
-              textWidth > bounds.width + 1 else {
+        let now = Date.timeIntervalSinceReferenceDate
+        let deltaTime = min(0.1, max(0.001, now - lastFrameTime))
+        lastFrameTime = now
+
+        if timelineProgress != nil {
+            let difference = timelineTargetOffset - offset
+            if abs(difference) < 0.15 {
+                offset = timelineTargetOffset
+                stopAnimation()
+            } else {
+                offset += difference * min(1, deltaTime * 14)
+            }
+            needsDisplay = true
+            return
+        }
+
+        guard textWidth > bounds.width + 1 else {
             stopAnimation()
             return
         }
         guard Date() >= pauseUntil else { return }
 
         let cycle = textWidth + loopGap
-        offset -= 26.0 / 30.0
+        offset -= loopSpeed * deltaTime
         if -offset >= cycle {
             offset += cycle
         }
