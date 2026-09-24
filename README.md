@@ -159,8 +159,18 @@ Sources/TouchingBarChecks/    不依赖 XCTest 的核心回归检查
 
 ## CI 与发布
 
-- `.github/workflows/ci.yml` 在 Intel 与 Apple Silicon runner 上构建并运行核心检查。
+- `.github/workflows/ci.yml` 在 macOS runner 上构建并运行核心检查，同时生成 `x86_64 + arm64` 通用 App；也可以从 Actions 页面手动触发。
+- 每次 CI 运行都会上传名为 `TouchingBar-universal` 的 artifact，包含 `TouchingBar.zip` 与 `TouchingBar.zip.sha256`。
 - `.github/workflows/release.yml` 构建通用二进制、计算 SHA-256，并在推送 `v*` tag 时创建 GitHub Release。
+
+从命令行提取 CI 产物：
+
+```bash
+gh run list --workflow CI
+gh run download <run-id> -n TouchingBar-universal
+```
+
+下载后解压目录中的 `TouchingBar.zip` 即可得到 `TouchingBar.app`。
 
 ## License
 

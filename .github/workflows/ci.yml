@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
     branches: ["**"]
   pull_request:
@@ -29,3 +30,19 @@ jobs:
           test "$(lipo -archs dist/TouchingBar.app/Contents/MacOS/TouchingBar)" = "x86_64 arm64"
           test "$(lipo -archs dist/TouchingBar.app/Contents/MacOS/TouchingBarCtl)" = "x86_64 arm64"
           codesign --verify --deep --strict dist/TouchingBar.app
+          shasum -a 256 dist/TouchingBar.zip | tee dist/TouchingBar.zip.sha256
+      - name: Upload universal app
+        uses: actions/upload-artifact@v4
+        with:
+          name: TouchingBar-universal
+          path: |
+            dist/TouchingBar.zip
+            dist/TouchingBar.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
+      - name: Artifact summary
+        run: |
+          echo "### TouchingBar build artifact" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Artifact: \`TouchingBar-universal\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Download from the **Artifacts** section of this workflow run." >> "$GITHUB_STEP_SUMMARY"
