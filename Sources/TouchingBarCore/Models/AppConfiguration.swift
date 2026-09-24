@@ -133,20 +133,38 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         if presets.isEmpty {
             presets = BuiltInPresets.make()
         }
-        ensureBuiltInPresets()
+        removeRetiredPresets()
         migrateDeveloperPresetToolchains()
         migrateSystemFunctionPreset()
-        migrateAgentPresetContext()
         migrateCustomPresetContent()
         normalizeCustomItemWidths()
+        if presets.isEmpty {
+            presets = BuiltInPresets.make()
+        }
         if activePresetID == nil || !presets.contains(where: { $0.id == activePresetID }) {
             activePresetID = presets.first?.id
         }
     }
 
-    private mutating func ensureBuiltInPresets() {
+    public mutating func restoreMissingBuiltInPresets() {
         for builtIn in BuiltInPresets.make() where !presets.contains(where: { $0.kind == builtIn.kind }) {
             presets.append(builtIn)
+        }
+        normalize()
+    }
+
+    private mutating func removeRetiredPresets() {
+        let retiredKinds: Set<PresetKind> = [.agents, .messages]
+        let retiredContextKeys: Set<String> = [
+            "provider", "task", "status", "detail", "duration", "sessions", "event", "tool", "cwd",
+            "message", "unreadSummary", "latestMessage", "messageBadges"
+        ]
+        presets.removeAll { retiredKinds.contains($0.kind) }
+        for index in presets.indices {
+            presets[index].items.removeAll { item in
+                guard let key = item.contextKey else { return false }
+                return retiredContextKeys.contains(key)
+            }
         }
     }
 
@@ -162,19 +180,6 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
     private mutating func migrateCustomPresetContent() {
         for index in presets.indices where presets[index].kind == .custom {
             presets[index].content = .components
-        }
-    }
-
-    private mutating func migrateAgentPresetContext() {
-        let defaults = BuiltInPresets.agents().items
-        for index in presets.indices where presets[index].kind == .agents {
-            let existingKeys = Set(presets[index].items.compactMap(\.contextKey))
-            for item in defaults where item.presentation == .context {
-                guard let key = item.contextKey, !existingKeys.contains(key) else { continue }
-                var copied = item
-                copied.id = UUID()
-                presets[index].items.append(copied)
-            }
         }
     }
 

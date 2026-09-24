@@ -1,16 +1,46 @@
 import Foundation
 
 public enum BuiltInPresets {
+    public static let restorableKinds: [PresetKind] = [
+        .functionKeys,
+        .systemFunctions,
+        .developer,
+        .music,
+        .metrics
+    ]
+
     public static func make() -> [TouchBarPreset] {
-        [
-            functionKeys(),
-            systemFunctions(),
-            developer(),
-            agents(),
-            metrics(),
-            messages(),
-            music()
-        ]
+        restorableKinds.compactMap(preset(for:))
+    }
+
+    public static func preset(for kind: PresetKind) -> TouchBarPreset? {
+        switch kind {
+        case .functionKeys:
+            return functionKeys()
+        case .systemFunctions:
+            return systemFunctions()
+        case .developer:
+            return developer()
+        case .music:
+            return music()
+        case .metrics:
+            return metrics()
+        case .agents, .messages, .custom:
+            return nil
+        }
+    }
+
+    public static func title(for kind: PresetKind) -> String {
+        switch kind {
+        case .functionKeys: return "F1–F12"
+        case .systemFunctions: return "Mac 功能键"
+        case .developer: return "开发者"
+        case .music: return "音乐与歌词"
+        case .metrics: return "系统资源"
+        case .agents: return "Agent"
+        case .messages: return "未读消息"
+        case .custom: return "自定义配置"
+        }
     }
 
     public static func functionKeys() -> TouchBarPreset {
@@ -20,7 +50,7 @@ public enum BuiltInPresets {
             items: (1...12).map { number in
                 TouchBarItemConfiguration(
                     label: "F\(number)",
-                    width: .compact,
+                    width: .regular,
                     action: ActionSpec(kind: .functionKey, value: "\(number)")
                 )
             },
@@ -30,18 +60,18 @@ public enum BuiltInPresets {
 
     public static func systemFunctions() -> TouchBarPreset {
         let items: [TouchBarItemConfiguration] = [
-            .init(label: "F1", symbolName: "sun.min", width: .compact, action: ActionSpec(kind: .brightness, value: "down")),
-            .init(label: "F2", symbolName: "sun.max", width: .compact, action: ActionSpec(kind: .brightness, value: "up")),
-            .init(label: "F3", symbolName: "rectangle.3.group", width: .compact, action: ActionSpec(kind: .missionControl)),
-            .init(label: "F4", symbolName: "lock.fill", width: .compact, action: ActionSpec(kind: .lockScreen)),
-            .init(label: "F5", symbolName: "light.min", width: .compact, action: ActionSpec(kind: .keyboardBacklight, value: "off")),
-            .init(label: "F6", symbolName: "light.max", width: .compact, action: ActionSpec(kind: .keyboardBacklight, value: "on")),
-            .init(label: "F7", symbolName: "backward.end.fill", width: .compact, action: .previousTrack),
-            .init(label: "F8", symbolName: "playpause.fill", width: .compact, action: .playPause),
-            .init(label: "F9", symbolName: "forward.end.fill", width: .compact, action: .nextTrack),
-            .init(label: "F10", symbolName: "speaker.slash", width: .compact, action: ActionSpec(kind: .volume, volume: .mute)),
-            .init(label: "F11", symbolName: "speaker.wave.1", width: .compact, action: ActionSpec(kind: .volume, volume: .down)),
-            .init(label: "F12", symbolName: "speaker.wave.3", width: .compact, action: ActionSpec(kind: .volume, volume: .up))
+            .init(label: "F1", symbolName: "sun.min", width: .regular, action: ActionSpec(kind: .brightness, value: "down")),
+            .init(label: "F2", symbolName: "sun.max", width: .regular, action: ActionSpec(kind: .brightness, value: "up")),
+            .init(label: "F3", symbolName: "rectangle.3.group", width: .regular, action: ActionSpec(kind: .missionControl)),
+            .init(label: "F4", symbolName: "lock.fill", width: .regular, action: ActionSpec(kind: .lockScreen)),
+            .init(label: "F5", symbolName: "light.min", width: .regular, action: ActionSpec(kind: .keyboardBacklight, value: "off")),
+            .init(label: "F6", symbolName: "light.max", width: .regular, action: ActionSpec(kind: .keyboardBacklight, value: "on")),
+            .init(label: "F7", symbolName: "backward.end.fill", width: .regular, action: .previousTrack),
+            .init(label: "F8", symbolName: "playpause.fill", width: .regular, action: .playPause),
+            .init(label: "F9", symbolName: "forward.end.fill", width: .regular, action: .nextTrack),
+            .init(label: "F10", symbolName: "speaker.slash", width: .regular, action: ActionSpec(kind: .volume, volume: .mute)),
+            .init(label: "F11", symbolName: "speaker.wave.1", width: .regular, action: ActionSpec(kind: .volume, volume: .down)),
+            .init(label: "F12", symbolName: "speaker.wave.3", width: .regular, action: ActionSpec(kind: .volume, volume: .up))
         ]
         return TouchBarPreset(name: "Mac 功能键", kind: .systemFunctions, items: items, isBuiltIn: true)
     }
@@ -73,20 +103,15 @@ public enum BuiltInPresets {
         )
     }
 
-    public static func agents() -> TouchBarPreset {
+    public static func music() -> TouchBarPreset {
         TouchBarPreset(
-            name: "Agent",
-            kind: .agents,
-            content: .agentContext,
+            name: "音乐与歌词",
+            kind: .music,
+            content: .nowPlaying,
             items: [
-                .init(label: "会话", width: .wide, presentation: .context, contextKey: "sessions"),
-                .init(label: "厂商", width: .regular, presentation: .context, contextKey: "provider"),
-                .init(label: "状态", width: .regular, presentation: .context, contextKey: "status"),
-                .init(label: "任务", width: .wide, presentation: .context, contextKey: "task"),
-                .init(label: "事件", width: .regular, presentation: .context, contextKey: "event"),
-                .init(label: "工具", width: .regular, presentation: .context, contextKey: "tool"),
-                .init(label: "目录", width: .wide, presentation: .context, contextKey: "cwd"),
-                .init(label: "耗时", width: .regular, presentation: .context, contextKey: "duration")
+                .init(label: "上一曲", symbolName: "backward.fill", width: .regular, action: .previousTrack),
+                .init(label: "播放", symbolName: "playpause.fill", width: .regular, action: .playPause),
+                .init(label: "下一曲", symbolName: "forward.fill", width: .regular, action: .nextTrack)
             ],
             isBuiltIn: true
         )
@@ -98,38 +123,15 @@ public enum BuiltInPresets {
             kind: .metrics,
             content: .components,
             items: [
-                .init(label: "CPU", width: .compact, presentation: .context, contextKey: "cpu"),
-                .init(label: "GPU", width: .compact, presentation: .context, contextKey: "gpu"),
-                .init(label: "内存", width: .compact, presentation: .context, contextKey: "memory"),
-                .init(label: "硬盘", width: .compact, presentation: .context, contextKey: "disk"),
-                .init(label: "温度", width: .compact, presentation: .context, contextKey: "cpuTemperature"),
-                .init(label: "风扇", width: .compact, presentation: .context, contextKey: "fanRPM"),
-                .init(label: "下载", width: .compact, presentation: .context, contextKey: "networkDownload"),
-                .init(label: "上传", width: .compact, presentation: .context, contextKey: "networkUpload")
-            ],
-            isBuiltIn: true
-        )
-    }
-
-    public static func messages() -> TouchBarPreset {
-        TouchBarPreset(
-            name: "未读消息",
-            kind: .messages,
-            content: .unreadMessages,
-            items: [],
-            isBuiltIn: true
-        )
-    }
-
-    public static func music() -> TouchBarPreset {
-        TouchBarPreset(
-            name: "音乐与歌词",
-            kind: .music,
-            content: .nowPlaying,
-            items: [
-                .init(label: "上一曲", symbolName: "backward.fill", width: .compact, action: .previousTrack),
-                .init(label: "播放", symbolName: "playpause.fill", width: .compact, action: .playPause),
-                .init(label: "下一曲", symbolName: "forward.fill", width: .compact, action: .nextTrack)
+                .init(label: "当前时间", width: .custom, customWidth: 130, presentation: .context, contextKey: "dateTime"),
+                .init(label: "CPU", width: .regular, presentation: .context, contextKey: "cpu"),
+                .init(label: "GPU", width: .regular, presentation: .context, contextKey: "gpu"),
+                .init(label: "内存", width: .regular, presentation: .context, contextKey: "memory"),
+                .init(label: "硬盘", width: .regular, isHidden: true, presentation: .context, contextKey: "disk"),
+                .init(label: "温度", width: .regular, presentation: .context, contextKey: "cpuTemperature"),
+                .init(label: "风扇", width: .regular, presentation: .context, contextKey: "fanRPM"),
+                .init(label: "下载", width: .regular, presentation: .context, contextKey: "networkDownload"),
+                .init(label: "上传", width: .regular, presentation: .context, contextKey: "networkUpload")
             ],
             isBuiltIn: true
         )

@@ -10,9 +10,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarController: StatusBarController!
     private var settingsWindowController: SettingsWindowController!
     private var hookServer: HookServer?
-    private let notificationController = MessageNotificationController()
-    private let agentNotificationController = AgentNotificationController()
-    private let messageBannerMonitor = MessageBannerMonitor()
     private var cancellables: Set<AnyCancellable> = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -24,14 +21,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         settingsWindowController = SettingsWindowController(store: store)
 
-        notificationController.requestAuthorization()
-        messageBannerMonitor.start(
-            bundleIdentifiers: store.configuration.messages.monitoredApplications
-        ) { [weak self] message in
-            Task { @MainActor in
-                self?.store.addIncomingMessage(message)
-            }
-        }
         observeStore()
         startHookServer()
         touchBarController.start()
@@ -45,7 +34,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         hookServer?.stop()
-        messageBannerMonitor.stop()
         touchBarController.stop()
     }
 
@@ -70,27 +58,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .dropFirst()
             .receive(on: RunLoop.main)
             .sink { [weak self] configuration in
+                _ = configuration
                 self?.statusBarController.update()
-                self?.messageBannerMonitor.update(
-                    bundleIdentifiers: configuration.messages.monitoredApplications
-                )
             }
             .store(in: &cancellables)
 
-        store.$runtime
-            .receive(on: RunLoop.main)
-            .sink { [weak self] snapshot in
-                guard let self else { return }
-                self.notificationController.process(
-                    snapshot.messages,
-                    enabled: self.store.configuration.messages.showNotificationBanners
-                )
-                self.agentNotificationController.process(
-                    snapshot.agents ?? snapshot.agent.map { [$0] } ?? [],
-                    enabled: self.store.configuration.effectiveShowAgentNotifications
-                )
-            }
-            .store(in: &cancellables)
     }
 
     private func startHookServer() {

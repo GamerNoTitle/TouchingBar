@@ -46,7 +46,21 @@ public final class ConfigurationStore: @unchecked Sendable {
             return configuration
         }
         let data = try Data(contentsOf: fileURL)
-        return try decode(data)
+        let rawConfiguration: AppConfiguration
+        do {
+            rawConfiguration = try decoder.decode(AppConfiguration.self, from: data)
+        } catch {
+            throw ConfigurationStoreError.invalidConfiguration
+        }
+        guard rawConfiguration.schemaVersion <= AppConfiguration.currentSchemaVersion else {
+            throw ConfigurationStoreError.unsupportedSchema(rawConfiguration.schemaVersion)
+        }
+        var normalized = rawConfiguration
+        normalized.normalize()
+        if normalized != rawConfiguration {
+            try save(normalized)
+        }
+        return normalized
     }
 
     public func save(_ configuration: AppConfiguration) throws {

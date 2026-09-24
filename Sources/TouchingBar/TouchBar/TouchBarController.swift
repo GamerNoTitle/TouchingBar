@@ -120,10 +120,6 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             self?.nowPlayingViews.forEach { $0.update(snapshot) }
             self?.updateContextValues()
         }
-        badgeTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.refreshDockBadges() }
-        }
-        refreshDockBadges()
         createSystemTrayItem()
         startPresentationTimerIfNeeded()
         rebuildTouchBar()
@@ -140,8 +136,6 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             self.systemTrayItem = nil
         }
         nowPlayingService.stop()
-        badgeTimer?.invalidate()
-        badgeTimer = nil
         presentationTimer?.invalidate()
         presentationTimer = nil
     }

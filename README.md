@@ -12,7 +12,7 @@ TouchingBar 是一个原生 macOS Touch Bar 信息与轻交互工具。它把 To
 - 可以在设置中隐藏系统关闭按钮、关闭动态效果、设置静默启动和菜单栏图标。
 - 支持菜单栏切换配置，也支持在 Touch Bar 内容区域上下滑动切换相邻配置。
 - 设置窗口采用显式保存流程：发生修改后右下角显示「撤销 / 保存」，也可以按 `⌘S`。
-- 支持 F1–F12、Mac 功能键、开发者、Agent、未读消息、音乐与歌词、系统资源和自由组件等配置。
+- 支持 F1–F12、Mac 功能键、开发者、音乐与歌词、系统资源和自由组件等配置。
 
 ### 内置配置
 
@@ -21,8 +21,6 @@ TouchingBar 是一个原生 macOS Touch Bar 信息与轻交互工具。它把 To
 | F1–F12 | 完整 12 个功能键，通过 `CGEvent` 发送标准 F1–F12 键码 |
 | Mac 功能键 | 屏幕亮度、调度中心、快速锁屏、键盘背光、媒体控制、音量和静音 |
 | 开发者 | 路径、Git 分支、改动数量、Python、Node、Java、Go、Rust、Swift、Docker、Kubernetes、Terraform、CMake、Xcode 等上下文 |
-| Agent | 多 Agent 会话、状态、任务、事件、工具、工作目录和耗时 |
-| 未读消息 | 从 Dock 角标读取微信、QQ、Telegram、企业微信、飞书、Lark 等未读数，并显示最新消息 |
 | 音乐与歌词 | 媒体控制、当前曲目、歌词、双行歌词和未播放时自动隐藏 |
 | 系统资源 | CPU、GPU、内存、硬盘、CPU 温度、风扇、上传和下载速度 |
 
@@ -31,10 +29,10 @@ TouchingBar 是一个原生 macOS Touch Bar 信息与轻交互工具。它把 To
 自定义配置可以在同一个 Touch Bar 中混合以下组件：
 
 - 媒体控件：上一曲、播放/暂停、下一曲
-- 正在播放、歌词、未读汇总、最新消息
+- 正在播放、歌词
 - 日期、时间、日期 + 时间
 - 系统资源：CPU、GPU、内存、硬盘、CPU 温度、风扇、上传、下载
-- 开发者上下文与 Agent 上下文
+- 开发者上下文
 - 系统功能：调度中心、快速锁屏、亮度、键盘背光、音量和静音
 - 自定义按钮：键盘快捷键、启动应用、打开 URL、运行 Shell 命令
 - Codex 宠物
@@ -117,51 +115,21 @@ animation-triggers.json   # 可选
 
 ```text
 POST /v1/context/developer
-POST /v1/context/agent
-POST /v1/messages
 ```
 
-随应用打包的 `TouchingBarCtl` 可以用于终端、脚本和 Agent：
+随应用打包的 `TouchingBarCtl` 可以用于终端和脚本：
 
 ```bash
 TouchingBarCtl health
 
-TouchingBarCtl agent   --provider codex   --status running   --task "Implement Touch Bar preset"
-
-TouchingBarCtl developer   --directory "$PWD"   --terminal "VS Code"
+TouchingBarCtl developer \
+  --directory "$PWD" \
+  --terminal "VS Code"
 
 TouchingBarCtl install-shell-hook
 TouchingBarCtl shell-hook-status
 TouchingBarCtl uninstall-shell-hook
-
-TouchingBarCtl message   --app WeChat   --sender Alice   --body "Hello from a hook"
 ```
-
-也支持直接把原始 Agent JSON 从标准输入传入：
-
-```bash
-TouchingBarCtl agent-event --provider claude-code < raw-hook.json
-```
-
-归一化器支持常见的 `hook_event_name`、`type`、`status`、`session_id`、`prompt`、`task`、`tool_name` 等字段，并把 `PreToolUse`、`UserPromptSubmit` 等事件映射为 `running`，把 `Stop` 映射为 `completed`。
-
-### Agent Hook 安装器
-
-设置中的「集成」页面可以为常见 Agent 安装 Hook：
-
-- Claude Code
-- Codex
-- Gemini
-- Cursor
-
-安装器会合并现有配置，只添加或移除 TouchingBar 管理的 Hook，不覆盖其他 Hook。
-
-### 消息
-
-- 通过 Dock 角标读取常见 IM 的未读数。
-- 在获得辅助功能权限后，尝试读取系统通知横幅的发送者与正文。
-- 支持自定义消息 Hook。
-- Touch Bar 通知横幅可以单独关闭，但最新消息仍会显示在 Touch Bar 中。
 
 ### 备份与恢复
 
@@ -176,7 +144,7 @@ TouchingBarCtl agent-event --provider claude-code < raw-hook.json
 - macOS 13 或更高版本
 - 带 Touch Bar 的 MacBook
 - 没有 Touch Bar 的 Mac 仍可编译并运行设置界面，但不能显示 Touch Bar UI
-- 使用全局占用、Dock 角标读取和键盘事件模拟时，需要授予“辅助功能”权限
+- 使用全局占用和键盘事件模拟时，需要授予“辅助功能”权限
 - 媒体控制和部分系统动作可能需要自动化权限
 - GitHub 宠物安装需要可用的 `git` 命令；SSH 地址需要本机已配置 GitHub SSH Key
 
@@ -242,7 +210,7 @@ bash Scripts/run-dev.sh
 Sources/TouchingBarCore/      数据模型、配置、备份、Hook、宠物、歌词和系统服务
 Sources/TouchingBarDFR/       DFRFoundation 私有接口隔离层
 Sources/TouchingBar/          AppKit 应用、Touch Bar 控制器、系统集成和 SwiftUI 设置
-Sources/TouchingBarCtl/       Agent、终端和脚本使用的命令行 Hook 客户端
+Sources/TouchingBarCtl/       终端和脚本使用的命令行 Hook 客户端
 Sources/TouchingBarChecks/    不依赖 XCTest 的回归检查
 ```
 

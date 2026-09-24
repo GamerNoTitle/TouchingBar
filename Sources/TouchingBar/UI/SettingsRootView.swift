@@ -117,13 +117,11 @@ struct GeneralSettingsView: View {
                     Text("接收路径")
                         .font(.headline)
                     Text("POST /v1/context/developer")
-                    Text("POST /v1/context/agent")
-                    Text("POST /v1/messages")
                         .font(.system(.body, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
 
-                Text("Agent、VS Code/JetBrains 终端扩展或脚本可以把上下文写入这些端点。Touch Bar 会立即更新，无需重启应用。")
+                Text("终端 Shell 集成、VS Code/JetBrains 扩展或脚本可以把当前目录上下文写入这个端点。Touch Bar 会立即更新，无需重启应用。")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } header: {

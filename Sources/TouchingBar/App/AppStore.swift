@@ -206,8 +206,19 @@ final class AppStore: ObservableObject {
 
     func deletePreset(id: UUID) {
         updateConfiguration { configuration in
-            configuration.presets.removeAll { $0.id == id && !$0.isBuiltIn }
+            configuration.presets.removeAll { $0.id == id }
             configuration.normalize()
+        }
+    }
+
+    func restoreBuiltInPreset(kind: PresetKind) {
+        guard let preset = BuiltInPresets.preset(for: kind),
+              !configuration.presets.contains(where: { $0.kind == kind }) else {
+            return
+        }
+        updateConfiguration { configuration in
+            configuration.presets.append(preset)
+            configuration.activePresetID = preset.id
         }
     }
 

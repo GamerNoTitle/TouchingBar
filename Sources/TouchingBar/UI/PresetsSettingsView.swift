@@ -28,12 +28,30 @@ struct PresetsSettingsView: View {
                 .onChange(of: selectedPresetID) { _ in selectedItemID = nil }
 
                 HStack {
-                    Button {
-                        store.addPreset()
-                        selectedPresetID = store.configuration.activePresetID
+                    Menu {
+                        Button("新建自定义配置") {
+                            store.addPreset()
+                            selectedPresetID = store.configuration.activePresetID
+                        }
+                        Divider()
+                        let missingKinds = BuiltInPresets.restorableKinds.filter { kind in
+                            !store.configuration.presets.contains(where: { $0.kind == kind })
+                        }
+                        if missingKinds.isEmpty {
+                            Text("所有内置预设都已恢复")
+                        } else {
+                            ForEach(missingKinds, id: \.self) { kind in
+                                Button("恢复 \(BuiltInPresets.title(for: kind))") {
+                                    store.restoreBuiltInPreset(kind: kind)
+                                    selectedPresetID = store.configuration.activePresetID
+                                }
+                            }
+                        }
                     } label: {
                         Image(systemName: "plus")
                     }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
                     Button {
                         guard let selectedPresetID else { return }
                         store.duplicatePreset(store.configuration.presets.first(where: { $0.id == selectedPresetID }) ?? store.configuration.presets[0])
@@ -49,7 +67,7 @@ struct PresetsSettingsView: View {
                     } label: {
                         Image(systemName: "trash")
                     }
-                    .disabled(selectedPresetID == nil || store.configuration.presets.first(where: { $0.id == selectedPresetID })?.isBuiltIn == true)
+                    .disabled(selectedPresetID == nil)
                     Spacer()
                 }
                 .buttonStyle(.borderless)
@@ -123,14 +141,14 @@ private struct PresetDetailView: View {
                 } else {
                     HStack {
                         Picker("内容类型", selection: contentBinding(preset)) {
-                            ForEach(PresetContent.allCases, id: \.self) { content in
+                            ForEach(supportedContents, id: \.self) { content in
                                 Text(contentTitle(content)).tag(content)
                             }
                         }
                         .frame(maxWidth: 300)
 
                         Picker("分类", selection: kindBinding(preset)) {
-                            ForEach(PresetKind.allCases, id: \.self) { kind in
+                            ForEach(BuiltInPresets.restorableKinds, id: \.self) { kind in
                                 Text(kindTitle(kind)).tag(kind)
                             }
                         }
@@ -189,6 +207,10 @@ private struct PresetDetailView: View {
                 store.replacePreset(updated)
             }
         )
+    }
+
+    private var supportedContents: [PresetContent] {
+        [.actions, .developerContext, .nowPlaying, .components]
     }
 
     private func contentTitle(_ content: PresetContent) -> String {
@@ -252,16 +274,6 @@ private struct CustomPresetEditor: View {
         .init(id: "swift", title: "Swift", key: "swift", width: .regular, symbol: "swift"),
         .init(id: "docker", title: "Docker", key: "docker", width: .regular, symbol: "shippingbox.fill"),
         .init(id: "xcode", title: "Xcode", key: "xcode", width: .regular, symbol: "hammer")
-    ]
-
-    private static let agentOptions: [ContextComponentOption] = [
-        .init(id: "provider", title: "Agent 厂商", key: "provider", width: .regular, symbol: "person.crop.circle"),
-        .init(id: "task", title: "Agent 任务", key: "task", width: .wide, symbol: "text.bubble"),
-        .init(id: "status", title: "Agent 状态", key: "status", width: .regular, symbol: "circle.dashed"),
-        .init(id: "detail", title: "Agent 详情", key: "detail", width: .wide, symbol: "text.alignleft"),
-        .init(id: "duration", title: "Agent 耗时", key: "duration", width: .regular, symbol: "timer"),
-        .init(id: "sessions", title: "Agent 会话", key: "sessions", width: .wide, symbol: "rectangle.stack"),
-        .init(id: "cwd", title: "Agent 目录", key: "cwd", width: .wide, symbol: "folder")
     ]
 
     private var preset: TouchBarPreset? {
@@ -356,12 +368,6 @@ private struct CustomPresetEditor: View {
                 Button("歌词") {
                     addContext("歌词", key: "lyric", width: .wide, symbol: "quote.bubble")
                 }
-                Button("未读汇总") {
-                    addContext("未读汇总", key: "unreadSummary", width: .regular, symbol: "message.badge")
-                }
-                Button("最新消息") {
-                    addContext("最新消息", key: "latestMessage", width: .wide, symbol: "text.bubble")
-                }
             }
 
             Section("宠物") {
@@ -392,14 +398,6 @@ private struct CustomPresetEditor: View {
 
             Section("开发者") {
                 ForEach(Self.developerOptions) { option in
-                    Button(option.title) {
-                        addContext(option)
-                    }
-                }
-            }
-
-            Section("Agent") {
-                ForEach(Self.agentOptions) { option in
                     Button(option.title) {
                         addContext(option)
                     }
@@ -1822,14 +1820,6 @@ private struct ContextItemEditor: View {
                 Text("日期").tag("date")
                 Text("时间").tag("time")
                 Text("日期 + 时间").tag("dateTime")
-                Text("未读汇总").tag("unreadSummary")
-                Text("最新消息").tag("latestMessage")
-                Text("消息角标").tag("messageBadges")
-                Text("Agent 厂商").tag("provider")
-                Text("任务").tag("task")
-                Text("状态").tag("status")
-                Text("详情").tag("detail")
-                Text("耗时").tag("duration")
             }
             WidthEditor(presetID: presetID, itemID: itemID, item: item)
             if (currentItem?.contextKey ?? item.contextKey) == "lyric" {

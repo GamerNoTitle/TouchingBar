@@ -32,11 +32,12 @@ struct TouchingBarChecks {
     private static func checkBuiltInPresets() throws {
         let presets = BuiltInPresets.make()
         try expect(presets.map(\.kind) == [
-            .functionKeys, .systemFunctions, .developer, .agents, .metrics, .messages, .music
-        ], "all built-in presets are present")
+            .functionKeys, .systemFunctions, .developer, .music, .metrics
+        ], "retired Agent and message presets are absent from defaults")
 
         let functionKeys = BuiltInPresets.functionKeys()
         try expect(functionKeys.items.count == 12, "F1-F12 preset has twelve items")
+        try expect(functionKeys.items.allSatisfy { $0.width == .regular }, "F1-F12 default width matches the current user preset")
         try expect(functionKeys.items.map(\.label) == (1...12).map { "F\($0)" }, "F1-F12 labels are ordered")
         try expect(functionKeys.items.map { $0.action.value } == (1...12).map(String.init), "F1-F12 actions are ordered")
 
@@ -44,6 +45,7 @@ struct TouchingBarChecks {
         try expect(systemItems[0].action.kind == .brightness && systemItems[0].action.value == "down", "F1 brightness down")
         let music = BuiltInPresets.music()
         try expect(music.items.count == 3, "music preset has three independent media controls")
+        try expect(music.items.map { $0.width } == [.regular, .regular, .regular], "music default widths match the current user preset")
         try expect(music.items.map(\.action.media) == [.previous, .playPause, .next], "music controls are separate components")
         try expect(systemItems[1].action.kind == .brightness && systemItems[1].action.value == "up", "F2 brightness up")
         try expect(systemItems[2].action.kind == .missionControl, "F3 Mission Control")
@@ -56,6 +58,11 @@ struct TouchingBarChecks {
         try expect(systemItems[9].action.volume == .mute, "F10 mute")
         try expect(systemItems[10].action.volume == .down, "F11 volume down")
         try expect(systemItems[11].action.volume == .up, "F12 volume up")
+        try expect(systemItems.allSatisfy { $0.width == .regular }, "Mac function key widths match the current user preset")
+
+        let metrics = BuiltInPresets.metrics()
+        try expect(metrics.items.first?.contextKey == "dateTime" && metrics.items.first?.customWidth == 130, "metrics default includes the current user date time component")
+        try expect(metrics.items.first { $0.contextKey == "disk" }?.isHidden == true, "metrics default preserves the hidden disk component")
     }
 
     private static func checkBackupRoundTrip() throws {
@@ -109,6 +116,16 @@ struct TouchingBarChecks {
         let legacyItem = try JSONDecoder().decode(TouchBarItemConfiguration.self, from: legacyItemJSON)
         try expect(!legacyItem.isHidden, "legacy items decode with a visible default")
         try expect(legacyItem.showsLabel, "legacy items decode with labels enabled by default")
+
+        var retiredConfiguration = AppConfiguration()
+        retiredConfiguration.presets.append(
+            TouchBarPreset(name: "Retired Agent", kind: .agents, content: .agentContext)
+        )
+        retiredConfiguration.presets.append(
+            TouchBarPreset(name: "Retired Messages", kind: .messages, content: .unreadMessages)
+        )
+        retiredConfiguration.normalize()
+        try expect(!retiredConfiguration.presets.contains { $0.kind == .agents || $0.kind == .messages }, "retired Agent and message presets are removed")
 
         var widthConfiguration = AppConfiguration()
         widthConfiguration.presets.append(
@@ -282,10 +299,12 @@ struct TouchingBarChecks {
         var configuration = AppConfiguration()
         configuration.presets.removeAll { $0.kind == .metrics }
         configuration.normalize()
-        try expect(configuration.presets.contains { $0.kind == .metrics }, "system metrics preset is migrated")
+        try expect(!configuration.presets.contains { $0.kind == .metrics }, "deleted built-in presets stay deleted")
+        configuration.restoreMissingBuiltInPresets()
+        try expect(configuration.presets.contains { $0.kind == .metrics }, "missing built-in presets can be restored")
         let metrics = configuration.presets.first { $0.kind == .metrics }
         let keys = Set(metrics?.items.compactMap(\.contextKey) ?? [])
-        try expect(keys.isSuperset(of: ["cpu", "gpu", "memory", "disk", "cpuTemperature", "fanRPM", "networkDownload", "networkUpload"]), "metrics preset contains all resource components")
+        try expect(keys.isSuperset(of: ["dateTime", "cpu", "gpu", "memory", "disk", "cpuTemperature", "fanRPM", "networkDownload", "networkUpload"]), "metrics preset contains the current default components")
     }
 
     private static func checkMetricsHistoryRange() throws {
@@ -482,15 +501,6 @@ struct TouchingBarChecks {
             )
         )
         try expect(snapshot.agents == nil, "SessionEnd removes the final Agent session")
-
-        var configuration = AppConfiguration()
-        guard let agentIndex = configuration.presets.firstIndex(where: { $0.kind == .agents }) else {
-            throw CheckFailure(message: "agent preset missing")
-        }
-        configuration.presets[agentIndex].items.removeAll { ["sessions", "event", "tool", "cwd"].contains($0.contextKey ?? "") }
-        configuration.normalize()
-        let keys = Set(configuration.presets[agentIndex].items.compactMap(\.contextKey))
-        try expect(keys.isSuperset(of: ["sessions", "event", "tool", "cwd"]), "existing Agent presets migrate context fields")
     }
 
     private static func checkShellHookInstaller() throws {
