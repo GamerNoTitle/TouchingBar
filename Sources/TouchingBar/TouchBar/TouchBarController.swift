@@ -1354,6 +1354,18 @@ private final class CodexPetTouchBarView: NSView {
         }
         imageView.image = frames.first
         toolTip = pet.displayName
+        if ProcessInfo.processInfo.environment["TOUCHINGBAR_DEBUG"] == "1" {
+            NSLog(
+                "TouchBar pet view id=%@ grid=%dx%d frames=%ld row=%d duration=%.3f animations=%@",
+                pet.id,
+                pet.columns,
+                pet.rows,
+                frames.count,
+                pet.defaultRow,
+                pet.frameDuration,
+                animationsEnabled ? "true" : "false"
+            )
+        }
     }
 
     required init?(coder: NSCoder) {
