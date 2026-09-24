@@ -54,13 +54,11 @@ final class StatusBarController: NSObject {
     private func rebuildMenu() {
         guard let statusItem else { return }
         let menu = NSMenu()
-        menu.appearance = NSAppearance(named: .darkAqua)
         menu.autoenablesItems = false
         menu.minimumWidth = 260
         menu.font = .menuFont(ofSize: 0)
 
         let presetMenu = NSMenu()
-        presetMenu.appearance = NSAppearance(named: .darkAqua)
         presetMenu.autoenablesItems = false
         presetMenu.minimumWidth = 220
         for preset in store.configuration.presets {
