@@ -18,6 +18,7 @@ struct TouchingBarChecks {
         try checkAgentSessionStore()
         try checkShellHookInstaller()
         try checkAgentHookInstaller()
+        try checkWebDAVKeychain()
         try await checkWebDAVClient()
         try await checkHookServer()
         print("TouchingBarChecks: all checks passed")
@@ -407,6 +408,21 @@ struct TouchingBarChecks {
         let uninstalledText = try String(contentsOf: configURL, encoding: .utf8)
         try expect(!uninstalledText.contains(AgentHookInstaller.managedMarker), "Agent hook uninstall removes managed hooks")
         try expect(uninstalledText.contains("user-hook"), "Agent hook uninstall preserves user hooks")
+    }
+
+    private static func checkWebDAVKeychain() throws {
+        let keychain = WebDAVKeychain(
+            service: "app.touchingbar.checks",
+            account: UUID().uuidString
+        )
+        defer { try? keychain.deletePassword() }
+
+        try keychain.savePassword("secret")
+        try expect(keychain.loadPassword() == "secret", "WebDAV password is stored in Keychain")
+        try keychain.savePassword("updated")
+        try expect(keychain.loadPassword() == "updated", "WebDAV password updates in Keychain")
+        try keychain.deletePassword()
+        try expect(keychain.loadPassword() == nil, "WebDAV password removes from Keychain")
     }
 
     private static func checkWebDAVClient() async throws {

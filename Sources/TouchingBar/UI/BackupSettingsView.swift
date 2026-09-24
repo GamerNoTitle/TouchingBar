@@ -13,9 +13,20 @@ struct BackupSettingsView: View {
             Section {
                 TextField("服务器 URL", text: webDAVBinding(\.serverURL), prompt: Text("https://dav.example.com/remote.php/dav/files/me"))
                 TextField("用户名", text: webDAVBinding(\.username))
-                SecureField("密码", text: $password)
+                HStack(spacing: 8) {
+                    SecureField("密码", text: $password)
+                        .onSubmit { savePassword() }
+                    Button("保存密码") { savePassword() }
+                    if !password.isEmpty {
+                        Button("清除密码") {
+                            store.clearWebDAVPassword()
+                            password = ""
+                            statusText = "已从 macOS 钥匙串清除密码。"
+                        }
+                    }
+                }
                 TextField("远程文件路径", text: webDAVBinding(\.remotePath))
-                Text("密码只保存在当前设置窗口中，不会写入配置或备份文件。后续可接入 Keychain 持久保存。")
+                Text("密码会保存在 macOS 钥匙串中，不会写入配置文件或备份文件。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } header: {
@@ -52,6 +63,16 @@ struct BackupSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear {
+            password = store.webDAVPassword
+        }
+    }
+
+    private func savePassword() {
+        store.saveWebDAVPassword(password)
+        if store.lastError == nil {
+            statusText = "密码已保存到 macOS 钥匙串。"
+        }
     }
 
     private func webDAVBinding(_ keyPath: WritableKeyPath<WebDAVSettings, String>) -> Binding<String> {
@@ -70,7 +91,8 @@ struct BackupSettingsView: View {
             do {
                 let data = try store.backupService.encode(configuration: store.configuration)
                 try await store.webDAVClient.upload(data, settings: store.configuration.webDAV, password: password)
-                statusText = "上传成功。"
+                store.saveWebDAVPassword(password)
+                statusText = "上传成功。密码已保存到 macOS 钥匙串。"
             } catch {
                 statusText = "上传失败：\(error.localizedDescription)"
             }
@@ -87,6 +109,7 @@ struct BackupSettingsView: View {
                 let configuration = try store.backupService.decode(data)
                 store.configuration = configuration
                 store.persist()
+                store.saveWebDAVPassword(password)
                 statusText = "恢复成功。Touch Bar 已重新载入配置。"
             } catch {
                 statusText = "恢复失败：\(error.localizedDescription)"
