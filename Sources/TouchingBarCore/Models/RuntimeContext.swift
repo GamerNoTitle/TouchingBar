@@ -230,11 +230,14 @@ public struct RuntimeContextSnapshot: Codable, Equatable, Sendable {
             return
         }
 
-        let index = context.sessionID.flatMap { sessionID in
-            list.firstIndex { $0.sessionID == sessionID }
-        } ?? list.firstIndex {
-            $0.provider == context.provider
-                && (context.workingDirectory == nil || $0.workingDirectory == context.workingDirectory)
+        let index: Int?
+        if let sessionID = context.sessionID {
+            index = list.firstIndex { $0.sessionID == sessionID }
+        } else {
+            index = list.firstIndex {
+                $0.provider == context.provider
+                    && (context.workingDirectory == nil || $0.workingDirectory == context.workingDirectory)
+            }
         }
 
         if let index {

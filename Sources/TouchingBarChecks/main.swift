@@ -244,6 +244,17 @@ struct TouchingBarChecks {
         try expect(snapshot.agents?.first?.status == .completed, "latest Agent session replaces prior state")
         try expect(snapshot.value(for: "sessions")?.contains("completed") == true, "Agent session summary is exposed")
 
+        let secondSession = AgentContext(
+            provider: "codex",
+            task: "Review",
+            status: .waiting,
+            sessionID: "other-session",
+            workingDirectory: "/tmp/project"
+        )
+        snapshot.upsertAgent(secondSession)
+        try expect(snapshot.agents?.count == 2, "different Agent session ids stay separate in one workspace")
+        try expect(snapshot.agents?.first?.sessionID == "other-session", "attention sessions sort first")
+
         let ended = AgentContext(
             provider: "codex",
             status: .idle,
@@ -251,7 +262,17 @@ struct TouchingBarChecks {
             event: "SessionEnd"
         )
         snapshot.upsertAgent(ended)
-        try expect(snapshot.agents == nil, "SessionEnd removes the finished Agent session")
+        try expect(snapshot.agents?.count == 1, "SessionEnd removes only the matching Agent session")
+
+        snapshot.upsertAgent(
+            AgentContext(
+                provider: "codex",
+                status: .idle,
+                sessionID: "other-session",
+                event: "SessionEnd"
+            )
+        )
+        try expect(snapshot.agents == nil, "SessionEnd removes the final Agent session")
 
         var configuration = AppConfiguration()
         guard let agentIndex = configuration.presets.firstIndex(where: { $0.kind == .agents }) else {
