@@ -7,6 +7,7 @@ struct PetsSettingsView: View {
     @State private var installedPets: [CodexPet] = []
     @State private var externalPets: [CodexPet] = []
     @State private var errorMessage: String?
+    @State private var showingGitHubInstaller = false
 
     private let petStore = CodexPetStore.shared
 
@@ -20,6 +21,10 @@ struct PetsSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
+                Button("从 GitHub 安装…") {
+                    showingGitHubInstaller = true
+                }
+                .buttonStyle(.borderedProminent)
                 Button("从文件夹安装…") {
                     installFromFolder()
                 }
@@ -89,6 +94,14 @@ struct PetsSettingsView: View {
         }
         .padding(4)
         .onAppear(perform: refresh)
+        .sheet(isPresented: $showingGitHubInstaller) {
+            GitHubPetInstallSheet { installed in
+                refresh()
+                if installed.count == 1 {
+                    errorMessage = nil
+                }
+            }
+        }
     }
 
     private func refresh() {
@@ -160,6 +173,79 @@ private struct PetSettingsRow: View {
                 .buttonStyle(.bordered)
         }
         .padding(.vertical, 3)
+    }
+}
+
+struct GitHubPetInstallSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var repositoryURL = ""
+    @State private var isInstalling = false
+    @State private var errorMessage: String?
+
+    let onInstalled: ([CodexPet]) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("从 GitHub 安装宠物")
+                .font(.title3.bold())
+            Text("支持仓库地址，也支持 `tree/<branch>/<子目录>` 链接。TouchingBar 会执行 `git clone --depth 1`，然后扫描并安装其中的 Codex pet。")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+
+            TextField("https://github.com/HanaAyane/remielle-codex-pet", text: $repositoryURL)
+                .textFieldStyle(.roundedBorder)
+                .disabled(isInstalling)
+                .onSubmit {
+                    guard !repositoryURL.isEmpty, !isInstalling else { return }
+                    Task { await install() }
+                }
+
+            if isInstalling {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("正在 git clone 并安装…")
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if let errorMessage {
+                Text(errorMessage)
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+            }
+
+            HStack {
+                Spacer()
+                Button("取消") {
+                    dismiss()
+                }
+                .disabled(isInstalling)
+                Button("安装") {
+                    Task { await install() }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(repositoryURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isInstalling)
+            }
+        }
+        .padding(20)
+        .frame(width: 520)
+    }
+
+    @MainActor
+    private func install() async {
+        let value = repositoryURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return }
+        isInstalling = true
+        errorMessage = nil
+        defer { isInstalling = false }
+        do {
+            let installed = try await CodexPetGitHubInstaller.shared.install(from: value)
+            onInstalled(installed)
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 }
 

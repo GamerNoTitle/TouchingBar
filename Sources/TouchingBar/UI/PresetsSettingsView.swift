@@ -1281,6 +1281,7 @@ private struct PetItemEditor: View {
     let item: TouchBarItemConfiguration
     @State private var installedPets: [CodexPet] = []
     @State private var errorMessage: String?
+    @State private var showingGitHubInstaller = false
 
     var body: some View {
         Form {
@@ -1294,10 +1295,13 @@ private struct PetItemEditor: View {
             }
 
             HStack {
-                Button("安装 Codex 宠物…") {
+                Button("从 GitHub 安装…") {
+                    showingGitHubInstaller = true
+                }
+                Button("从文件夹安装…") {
                     installPetFromFolder()
                 }
-                Button("扫描并安装 ~/.codex/pets") {
+                Button("扫描 ~/.codex/pets") {
                     installExternalPets()
                 }
             }
@@ -1367,6 +1371,14 @@ private struct PetItemEditor: View {
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
         .onAppear {
             refreshInstalledPets()
+        }
+        .sheet(isPresented: $showingGitHubInstaller) {
+            GitHubPetInstallSheet { installed in
+                refreshInstalledPets()
+                if let first = installed.first {
+                    select(petID: first.id, label: first.displayName)
+                }
+            }
         }
     }
 

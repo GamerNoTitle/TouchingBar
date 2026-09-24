@@ -11,6 +11,7 @@ struct TouchingBarChecks {
         try checkBackupRoundTrip()
         try checkConfigurationNormalization()
         try checkCodexPetInstallation()
+        try checkCodexPetGitHubReference()
         try checkImageComponentRoundTrip()
         try checkMetricsPresetMigration()
         try checkMetricsHistoryRange()
@@ -213,6 +214,23 @@ struct TouchingBarChecks {
         guard CGImageDestinationFinalize(destination) else {
             throw CheckFailure(message: "Could not finalize pet spritesheet PNG")
         }
+    }
+
+    private static func checkCodexPetGitHubReference() throws {
+        let simple = CodexPetGitHubReference.parse("https://github.com/HanaAyane/remielle-codex-pet")
+        try expect(simple?.owner == "HanaAyane", "GitHub pet URL parses owner")
+        try expect(simple?.repository == "remielle-codex-pet", "GitHub pet URL parses repository")
+        try expect(simple?.candidateBranches == ["main", "master"], "GitHub pet URL falls back to main/master")
+
+        let tree = CodexPetGitHubReference.parse(
+            "https://github.com/HanaAyane/remielle-codex-pet/tree/main/output/xiaolemi"
+        )
+        try expect(tree?.branch == "main", "GitHub tree URL parses branch")
+        try expect(tree?.subpath == "output/xiaolemi", "GitHub tree URL parses subdirectory")
+
+        let ssh = CodexPetGitHubReference.parse("git@github.com:HanaAyane/remielle-codex-pet.git")
+        try expect(ssh?.repository == "remielle-codex-pet", "GitHub SSH URL parses repository")
+        try expect(CodexPetGitHubReference.parse("https://example.com/owner/repo") == nil, "non-GitHub pet URL is rejected")
     }
 
     private static func checkImageComponentRoundTrip() throws {
