@@ -1,4 +1,5 @@
 import ApplicationServices
+import Combine
 import SwiftUI
 import TouchingBarCore
 
@@ -17,6 +18,8 @@ struct SettingsRootView: View {
                 .tabItem { Text("集成") }
             BackupSettingsView()
                 .tabItem { Text("备份与恢复") }
+            AboutSettingsView()
+                .tabItem { Text("关于") }
         }
         .padding(16)
         .frame(minWidth: 760, minHeight: 520)
@@ -54,6 +57,7 @@ struct SettingsRootView: View {
 
 struct GeneralSettingsView: View {
     @EnvironmentObject private var store: AppStore
+    @StateObject private var launchAtLogin = LaunchAtLoginController()
     @State private var accessibilityTrusted = false
 
     private func requestAccessibilityPermission() {
@@ -90,6 +94,13 @@ struct GeneralSettingsView: View {
         )
     }
 
+    private var launchAtLoginBinding: Binding<Bool> {
+        Binding(
+            get: { launchAtLogin.isEnabled },
+            set: { launchAtLogin.setEnabled($0) }
+        )
+    }
+
     private var disableAnimationsBinding: Binding<Bool> {
         Binding(
             get: { store.configuration.effectiveDisableAnimations },
@@ -101,9 +112,29 @@ struct GeneralSettingsView: View {
         Form {
             Section {
                 Toggle("在菜单栏显示 TouchingBar", isOn: menuBarBinding)
+                Toggle("开机自动启动", isOn: launchAtLoginBinding)
                 Toggle("静默启动", isOn: silentLaunchBinding)
                 Toggle("关闭动态效果", isOn: disableAnimationsBinding)
                 Toggle("隐藏 Touch Bar 关闭按钮", isOn: closeBoxBinding)
+                if launchAtLogin.requiresApproval {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text("需要在系统设置的“登录项”中允许 TouchingBar。")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("打开登录项") {
+                            launchAtLogin.openLoginItemsSettings()
+                        }
+                    }
+                }
+                if let error = launchAtLogin.errorMessage {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .textSelection(.enabled)
+                }
                 Text("静默启动会在启动或重新打开 TouchingBar 时不自动打开设置窗口，仍可从菜单栏打开。关闭动态效果后，宠物与双行歌词使用静态切换。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -232,6 +263,10 @@ struct GeneralSettingsView: View {
         .formStyle(.grouped)
         .onAppear {
             accessibilityTrusted = AXIsProcessTrusted()
+            launchAtLogin.refresh()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            launchAtLogin.refresh()
         }
     }
 }
