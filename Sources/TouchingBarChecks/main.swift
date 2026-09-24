@@ -132,6 +132,20 @@ struct TouchingBarChecks {
         try expect(decodedFormattedTime.timeFormat == "HH:mm", "time format round-trips")
         try expect(decodedFormattedTime.chartColorHex == "#12AB34", "chart color round-trips")
 
+        var playingVisibilityConfiguration = AppConfiguration()
+        playingVisibilityConfiguration.presets.append(
+            TouchBarPreset(
+                name: "Playing Visibility",
+                kind: .custom,
+                content: .components,
+                items: [
+                    TouchBarItemConfiguration(label: "CPU", hideWhenPlaying: true, presentation: .context, contextKey: "cpu")
+                ]
+            )
+        )
+        playingVisibilityConfiguration.normalize()
+        try expect(playingVisibilityConfiguration.presets.last?.items.first?.hideWhenPlaying == true, "hide while playing is available without media controls")
+
         var retiredConfiguration = AppConfiguration()
         retiredConfiguration.presets.append(
             TouchBarPreset(name: "Retired Agent", kind: .agents, content: .agentContext)

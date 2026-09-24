@@ -45,6 +45,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
     public var customWidth: Double?
     public var isHidden: Bool
     public var hideWhenNotPlaying: Bool
+    public var hideWhenPlaying: Bool
     public var showsLabel: Bool
     public var dualLineLyrics: Bool
     public var presentation: TouchBarItemPresentation
@@ -65,6 +66,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         customWidth: Double? = nil,
         isHidden: Bool = false,
         hideWhenNotPlaying: Bool = false,
+        hideWhenPlaying: Bool = false,
         showsLabel: Bool = true,
         dualLineLyrics: Bool = false,
         presentation: TouchBarItemPresentation = .button,
@@ -84,6 +86,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         self.customWidth = customWidth
         self.isHidden = isHidden
         self.hideWhenNotPlaying = hideWhenNotPlaying
+        self.hideWhenPlaying = hideWhenPlaying
         self.showsLabel = showsLabel
         self.dualLineLyrics = dualLineLyrics
         self.presentation = presentation
@@ -105,6 +108,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         case customWidth
         case isHidden
         case hideWhenNotPlaying
+        case hideWhenPlaying
         case showsLabel
         case dualLineLyrics
         case presentation
@@ -127,6 +131,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         customWidth = try container.decodeIfPresent(Double.self, forKey: .customWidth)
         isHidden = try container.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
         hideWhenNotPlaying = try container.decodeIfPresent(Bool.self, forKey: .hideWhenNotPlaying) ?? false
+        hideWhenPlaying = try container.decodeIfPresent(Bool.self, forKey: .hideWhenPlaying) ?? false
         showsLabel = try container.decodeIfPresent(Bool.self, forKey: .showsLabel) ?? true
         dualLineLyrics = try container.decodeIfPresent(Bool.self, forKey: .dualLineLyrics) ?? false
         presentation = try container.decodeIfPresent(TouchBarItemPresentation.self, forKey: .presentation) ?? .button
@@ -149,6 +154,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         try container.encodeIfPresent(customWidth, forKey: .customWidth)
         try container.encode(isHidden, forKey: .isHidden)
         try container.encode(hideWhenNotPlaying, forKey: .hideWhenNotPlaying)
+        try container.encode(hideWhenPlaying, forKey: .hideWhenPlaying)
         try container.encode(showsLabel, forKey: .showsLabel)
         try container.encode(dualLineLyrics, forKey: .dualLineLyrics)
         try container.encode(presentation, forKey: .presentation)

@@ -540,6 +540,9 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     private func shouldDisplayContextItem(_ item: TouchBarItemConfiguration) -> Bool {
+        if item.hideWhenPlaying, latestNowPlaying?.isPlaying == true {
+            return false
+        }
         if item.hideWhenNotPlaying,
            isMusicRelatedItem(item),
            latestNowPlaying?.isPlaying != true {
@@ -824,6 +827,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 item.customWidth.map { String(format: "%.2f", $0) } ?? "",
                 item.isHidden ? "hidden" : "visible",
                 item.hideWhenNotPlaying ? "hide-not-playing" : "always-visible",
+                item.hideWhenPlaying ? "hide-playing" : "visible-playing",
                 item.showsLabel ? "label" : "no-label",
                 item.dualLineLyrics ? "dual-line" : "single-line",
                 item.presentation.rawValue,

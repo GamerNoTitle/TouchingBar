@@ -1129,6 +1129,8 @@ private struct ActionItemEditor: View {
                     .toggleStyle(.switch)
             }
 
+            HideWhenPlayingToggle(presetID: presetID, itemID: itemID, item: item)
+
             Toggle("隐藏组件", isOn: hiddenBinding)
                 .toggleStyle(.switch)
 
@@ -1449,6 +1451,8 @@ private struct PetItemEditor: View {
             }
 
             WidthEditor(presetID: presetID, itemID: itemID, item: item)
+
+            HideWhenPlayingToggle(presetID: presetID, itemID: itemID, item: item)
 
             Toggle("隐藏组件", isOn: hiddenBinding)
                 .toggleStyle(.switch)
@@ -1893,6 +1897,7 @@ private struct ContextItemEditor: View {
                 Toggle("未播放时隐藏", isOn: hideWhenNotPlayingBinding)
                     .toggleStyle(.switch)
             }
+            HideWhenPlayingToggle(presetID: presetID, itemID: itemID, item: item)
             Toggle("隐藏组件", isOn: hiddenBinding)
                 .toggleStyle(.switch)
             HStack {
@@ -2037,6 +2042,36 @@ private enum ChartColorInputMode: String, CaseIterable, Identifiable {
     case rgb
 
     var id: String { rawValue }
+}
+
+private struct HideWhenPlayingToggle: View {
+    @EnvironmentObject private var store: AppStore
+    let presetID: UUID
+    let itemID: UUID
+    let item: TouchBarItemConfiguration
+
+    var body: some View {
+        Toggle("播放时隐藏", isOn: binding)
+            .toggleStyle(.switch)
+            .help("音乐正在播放时隐藏此组件")
+    }
+
+    private var currentItem: TouchBarItemConfiguration? {
+        store.configuration.presets
+            .first(where: { $0.id == presetID })?
+            .items.first(where: { $0.id == itemID })
+    }
+
+    private var binding: Binding<Bool> {
+        Binding(
+            get: { currentItem?.hideWhenPlaying ?? item.hideWhenPlaying },
+            set: { value in
+                guard var updated = currentItem else { return }
+                updated.hideWhenPlaying = value
+                store.updateItem(presetID: presetID, item: updated)
+            }
+        )
+    }
 }
 
 private struct ChartColorEditor: View {
