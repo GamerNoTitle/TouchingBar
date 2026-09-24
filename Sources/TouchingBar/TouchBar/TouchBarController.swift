@@ -40,6 +40,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private var agentSessionCards: [AgentSessionCardView] = []
     private var badgeCounts: [ApplicationUnreadCount] = []
     private var knownMetricContextKeys: Set<String> = []
+    private var hasReceivedSystemMetrics = false
     private var isStarted = false
     private var cancellables: Set<AnyCancellable> = []
     private var expectedItemCount = 0
@@ -63,6 +64,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] snapshot in
                 guard let self else { return }
+                self.hasReceivedSystemMetrics = true
                 self.rememberAvailableMetricContextKeys(in: snapshot)
                 self.rebuildTouchBar()
                 self.updateContextValues()
@@ -107,12 +109,6 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             startPresentationTimerIfNeeded()
         }
         rebuildTouchBar()
-        if store.configuration.alwaysOccupyTouchBar {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-                guard let self, self.store.configuration.alwaysOccupyTouchBar else { return }
-                self.present()
-            }
-        }
         updateTouchBarStatus()
     }
 
@@ -219,6 +215,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private func rebuildTouchBar() {
         guard isStarted else { return }
         guard let activePreset = store.configuration.activePreset else { return }
+        guard activePreset.kind != .metrics || hasReceivedSystemMetrics else { return }
         let signature = rebuildSignature(for: activePreset)
         guard signature != lastRebuildSignature else { return }
         lastRebuildSignature = signature
