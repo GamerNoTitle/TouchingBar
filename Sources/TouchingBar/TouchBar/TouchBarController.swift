@@ -10,12 +10,6 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private static let systemTrayIdentifier = NSTouchBarItem.Identifier("app.touchingbar.system-tray")
     private static let nowPlayingIdentifier = NSTouchBarItem.Identifier("app.touchingbar.now-playing")
     private static let messagesIdentifier = NSTouchBarItem.Identifier("app.touchingbar.messages")
-    private static let customEmptyIdentifier = NSTouchBarItem.Identifier("app.touchingbar.custom.empty")
-    private static let lyricsIdentifier = NSTouchBarItem.Identifier("app.touchingbar.custom.lyrics")
-
-    private static func customItemIdentifier(for id: UUID) -> NSTouchBarItem.Identifier {
-        NSTouchBarItem.Identifier("app.touchingbar.custom.\(id.uuidString)")
-    }
     private static let developerContextKeys: Set<String> = [
         "path", "branch", "changes", "python", "node", "java", "go", "rust", "ruby", "php",
         "swift", "docker", "kubernetes", "terraform", "cmake", "xcode"
@@ -39,7 +33,6 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private var contextViews: [UUID: ContextTouchBarView] = [:]
     private var contextConfigurations: [UUID: TouchBarItemConfiguration] = [:]
     private var actionConfigurations: [String: TouchBarItemConfiguration] = [:]
-    private var customItemConfigurations: [String: TouchBarItemConfiguration] = [:]
     private var nowPlayingViews: [NowPlayingTouchBarView] = []
     private var messageViews: [MessagesTouchBarView] = []
     private var latestNowPlaying: NowPlayingSnapshot?
@@ -138,7 +131,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     func present() {
         guard isStarted, let touchBar else { return }
         TBSetSystemModalShowsCloseBoxWhenFrontMost(!store.configuration.hideTouchBarCloseButton)
-        TBPresentSystemModalTouchBar(touchBar, nil, true)
+        TBPresentSystemModalTouchBar(touchBar, systemTrayItem?.identifier.rawValue, true)
         if ProcessInfo.processInfo.environment["TOUCHINGBAR_DEBUG"] == "1" {
             NSLog(
                 "TouchBar system modal presented isVisible=%@ identifiers=%ld",
@@ -146,14 +139,20 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 touchBar.itemIdentifiers.count
             )
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-                guard let self,
-                      let item = self.touchBar?.item(forIdentifier: Self.actionDashboardIdentifier),
-                      let view = item.view else { return }
-                NSLog(
-                    "TouchBar allocated dashboard frame=%@ superview=%@",
-                    NSStringFromRect(view.frame),
-                    view.superview.map { NSStringFromRect($0.frame) } ?? "nil"
-                )
+                guard let self, let presentedTouchBar = self.touchBar else { return }
+                for identifier in presentedTouchBar.itemIdentifiers {
+                    guard let item = presentedTouchBar.item(forIdentifier: identifier),
+                          let view = item.view else {
+                        NSLog("TouchBar allocated item %@ missing", identifier.rawValue)
+                        continue
+                    }
+                    NSLog(
+                        "TouchBar allocated item %@ frame=%@ superview=%@",
+                        identifier.rawValue,
+                        NSStringFromRect(view.frame),
+                        view.superview.map { NSStringFromRect($0.frame) } ?? "nil"
+                    )
+                }
             }
         }
     }
@@ -208,7 +207,6 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         lastRebuildSignature = signature
 
         actionConfigurations.removeAll()
-        customItemConfigurations.removeAll()
         contextViews.removeAll()
         contextConfigurations.removeAll()
         nowPlayingViews.removeAll()
@@ -217,27 +215,10 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         agentSessionCards.removeAll()
         createdItemIdentifiers.removeAll()
 
-        let identifiers: [NSTouchBarItem.Identifier]
-        if activePreset.kind == .custom {
-            let visibleItems = activePreset.items.filter { shouldDisplayContextItem($0) }
-            customItemConfigurations = Dictionary(
-                uniqueKeysWithValues: visibleItems.map {
-                    (Self.customItemIdentifier(for: $0.id).rawValue, $0)
-                }
-            )
-            identifiers = visibleItems.isEmpty
-                ? [Self.customEmptyIdentifier]
-                : visibleItems.map { Self.customItemIdentifier(for: $0.id) }
-        } else if activePreset.kind == .music {
-            let visibleItems = activePreset.items.filter { shouldDisplayContextItem($0) }
-            customItemConfigurations = Dictionary(
-                uniqueKeysWithValues: visibleItems.map {
-                    (Self.customItemIdentifier(for: $0.id).rawValue, $0)
-                }
-            )
-            identifiers = visibleItems.map { Self.customItemIdentifier(for: $0.id) } + [Self.lyricsIdentifier]
-        } else {
-            identifiers = [Self.actionDashboardIdentifier]
+        let identifiers: [NSTouchBarItem.Identifier] = [Self.actionDashboardIdentifier]
+
+        if let existingTouchBar = self.touchBar {
+            TBDismissSystemModalTouchBar(existingTouchBar)
         }
 
         let touchBar = NSTouchBar()
@@ -256,15 +237,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
     func touchBar(_ touchBar: NSTouchBar, makeItemForIdentifier identifier: NSTouchBarItem.Identifier) -> NSTouchBarItem? {
         let item: NSCustomTouchBarItem?
-        if identifier == Self.customEmptyIdentifier {
-            item = makeCustomEmptyItem()
-        } else if identifier == Self.lyricsIdentifier {
-            item = makeLyricsItem()
-        } else if let configuration = customItemConfigurations[identifier.rawValue] {
-            item = makeCustomItem(configuration, identifier: identifier)
-        } else if identifier == Self.actionDashboardIdentifier,
-                  let preset = store.configuration.activePreset,
-                  preset.kind != .custom && preset.kind != .music {
+        if identifier == Self.actionDashboardIdentifier {
             item = makePresetDashboardItem()
         } else {
             item = nil
@@ -288,60 +261,6 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 viewDescription
             )
         }
-        return item
-    }
-
-    private func makeCustomEmptyItem() -> NSCustomTouchBarItem {
-        let item = NSCustomTouchBarItem(identifier: Self.customEmptyIdentifier)
-        let label = NSTextField(labelWithString: "请在设置中添加组件")
-        label.font = .systemFont(ofSize: 0, weight: .medium)
-        label.textColor = .secondaryLabelColor
-        let wrapper = NSView(frame: NSRect(x: 0, y: 0, width: 280, height: 30))
-        label.translatesAutoresizingMaskIntoConstraints = false
-        wrapper.addSubview(label)
-        NSLayoutConstraint.activate([
-            label.centerXAnchor.constraint(equalTo: wrapper.centerXAnchor),
-            label.centerYAnchor.constraint(equalTo: wrapper.centerYAnchor)
-        ])
-        item.view = wrapper
-        item.customizationLabel = "空的自定义配置"
-        item.visibilityPriority = .high
-        return item
-    }
-
-    private func makeLyricsItem() -> NSCustomTouchBarItem {
-        let item = NSCustomTouchBarItem(identifier: Self.lyricsIdentifier)
-        let view = NowPlayingTouchBarView(width: TouchBarLayoutMetrics.lyricsWidth)
-        if let latestNowPlaying {
-            view.update(latestNowPlaying)
-        }
-        nowPlayingViews.append(view)
-        item.view = view
-        item.customizationLabel = "播放信息与歌词"
-        item.visibilityPriority = .high
-        return item
-    }
-
-    private func makeCustomItem(
-        _ configuration: TouchBarItemConfiguration,
-        identifier: NSTouchBarItem.Identifier
-    ) -> NSCustomTouchBarItem? {
-        guard let preset = store.configuration.activePreset else { return nil }
-        let item = NSCustomTouchBarItem(identifier: identifier)
-        if configuration.presentation == .context {
-            let width = contextWidth(for: configuration, preset: preset)
-            let view = ContextTouchBarView(title: configuration.label, width: width)
-            updateContextView(view, key: configuration.contextKey ?? "")
-            view.frame = NSRect(x: 0, y: 0, width: width, height: 30)
-            contextViews[configuration.id] = view
-            contextConfigurations[configuration.id] = configuration
-            item.view = view
-        } else {
-            let width = customButtonWidth(for: configuration)
-            item.view = makeActionButtonView(configuration, preset: preset, width: width)
-        }
-        item.customizationLabel = configuration.label
-        item.visibilityPriority = .high
         return item
     }
 
@@ -503,7 +422,9 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private func addContextViews(from preset: TouchBarPreset, to dashboard: NSStackView) {
         let visibleItems = preset.items.filter { shouldDisplayContextItem($0) }
         let widths = visibleItems.map { configuration in
-            contextWidth(for: configuration, preset: preset)
+            configuration.presentation == .context
+                ? contextWidth(for: configuration, preset: preset)
+                : (preset.kind == .custom ? customButtonWidth(for: configuration) : contextWidth(for: configuration, preset: preset))
         }
         let spacing: CGFloat = 4
         let contentWidth = widths.reduce(0, +) + CGFloat(max(0, widths.count - 1)) * spacing
