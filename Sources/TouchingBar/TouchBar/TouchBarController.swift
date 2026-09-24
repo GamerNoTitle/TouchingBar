@@ -935,7 +935,8 @@ private final class AgentSessionCardView: NSView {
             statusText = "已连接"; symbol = "·"; color = .tertiaryLabelColor
         }
 
-        titleLabel.stringValue = "\(symbol)  \(agent.provider) · \(statusText)"
+        let providerName = displayProviderName(agent.provider)
+        titleLabel.stringValue = "\(symbol)  \(providerName) · \(statusText)"
         titleLabel.textColor = color
         statusStripe.layer?.backgroundColor = color.cgColor
         layer?.borderColor = color.withAlphaComponent(0.35).cgColor
@@ -954,7 +955,7 @@ private final class AgentSessionCardView: NSView {
             .joined(separator: " · ")
 
         toolTip = [
-            "\(agent.provider) · \(statusText)",
+            "\(providerName) · \(statusText)",
             primary,
             context,
             agent.workingDirectory,
@@ -963,6 +964,21 @@ private final class AgentSessionCardView: NSView {
         ]
         .compactMap { $0 }
         .joined(separator: "\n")
+    }
+
+    private func displayProviderName(_ provider: String) -> String {
+        switch provider.lowercased() {
+        case "claude-code", "claude", "claudecode":
+            return "Claude Code"
+        case "codex":
+            return "Codex"
+        case "gemini", "gemini-cli":
+            return "Gemini"
+        case "cursor":
+            return "Cursor"
+        default:
+            return provider
+        }
     }
 }
 
