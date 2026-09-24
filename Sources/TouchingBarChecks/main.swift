@@ -230,6 +230,11 @@ struct TouchingBarChecks {
 
         let ssh = CodexPetGitHubReference.parse("git@github.com:HanaAyane/remielle-codex-pet.git")
         try expect(ssh?.repository == "remielle-codex-pet", "GitHub SSH URL parses repository")
+        try expect(ssh?.usesSSH == true, "GitHub SSH URL keeps SSH mode")
+        try expect(ssh?.cloneURL == "git@github.com:HanaAyane/remielle-codex-pet.git", "GitHub SSH URL builds an SSH clone URL")
+
+        let sshScheme = CodexPetGitHubReference.parse("ssh://git@github.com/HanaAyane/remielle-codex-pet.git")
+        try expect(sshScheme?.usesSSH == true, "ssh:// GitHub URL keeps SSH mode")
         try expect(CodexPetGitHubReference.parse("https://example.com/owner/repo") == nil, "non-GitHub pet URL is rejected")
     }
 

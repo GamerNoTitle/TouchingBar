@@ -5,12 +5,27 @@ public struct CodexPetGitHubReference: Equatable, Sendable {
     public var repository: String
     public var branch: String?
     public var subpath: String?
+    public var usesSSH: Bool
 
-    public init(owner: String, repository: String, branch: String? = nil, subpath: String? = nil) {
+    public init(
+        owner: String,
+        repository: String,
+        branch: String? = nil,
+        subpath: String? = nil,
+        usesSSH: Bool = false
+    ) {
         self.owner = owner
         self.repository = repository
         self.branch = branch
         self.subpath = subpath
+        self.usesSSH = usesSSH
+    }
+
+    public var cloneURL: String {
+        if usesSSH {
+            return "git@github.com:\(owner)/\(repository).git"
+        }
+        return "https://github.com/\(owner)/\(repository).git"
     }
 
     public var displayName: String {
@@ -28,8 +43,13 @@ public struct CodexPetGitHubReference: Equatable, Sendable {
         var value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty else { return nil }
 
+        var usesSSH = false
         if value.hasPrefix("git@github.com:") {
+            usesSSH = true
             value = "https://github.com/" + value.dropFirst("git@github.com:".count)
+        } else if value.hasPrefix("ssh://git@github.com/") {
+            usesSSH = true
+            value = "https://github.com/" + value.dropFirst("ssh://git@github.com/".count)
         } else if !value.contains("://") {
             value = "https://github.com/" + value
         }
@@ -67,7 +87,8 @@ public struct CodexPetGitHubReference: Equatable, Sendable {
             owner: owner,
             repository: repository,
             branch: branch,
-            subpath: subpath
+            subpath: subpath,
+            usesSSH: usesSSH
         )
     }
 
@@ -149,7 +170,7 @@ public final class CodexPetGitHubInstaller: @unchecked Sendable {
     }
 
     private func clone(reference: CodexPetGitHubReference, branch: String, to destination: URL) throws {
-        guard let repositoryURL = URL(string: "https://github.com/\(reference.owner)/\(reference.repository).git") else {
+        guard let repositoryURL = URL(string: reference.cloneURL) else {
             throw CodexPetGitHubInstallerError.invalidURL(reference.displayName)
         }
 

@@ -188,11 +188,11 @@ struct GitHubPetInstallSheet: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("从 GitHub 安装宠物")
                 .font(.title3.bold())
-            Text("支持仓库地址，也支持 `tree/<branch>/<子目录>` 链接。TouchingBar 会执行 `git clone --depth 1`，然后扫描并安装其中的 Codex pet。")
+            Text("支持 HTTPS、SSH 与 `tree/<branch>/<子目录>` 链接。TouchingBar 会执行 `git clone --depth 1`，然后扫描并安装其中的 Codex pet。")
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
-            TextField("https://github.com/HanaAyane/remielle-codex-pet", text: $repositoryURL)
+            TextField("https://github.com/<user>/<repo>", text: $repositoryURL)
                 .textFieldStyle(.roundedBorder)
                 .disabled(isInstalling)
                 .onSubmit {
