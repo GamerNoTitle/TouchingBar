@@ -10,9 +10,11 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private static let systemTrayIdentifier = NSTouchBarItem.Identifier("app.touchingbar.system-tray")
     private static let nowPlayingIdentifier = NSTouchBarItem.Identifier("app.touchingbar.now-playing")
     private static let messagesIdentifier = NSTouchBarItem.Identifier("app.touchingbar.messages")
-    private static let adaptiveContextKeys: Set<String> = [
+    private static let developerContextKeys: Set<String> = [
         "path", "branch", "changes", "python", "node", "java", "go", "rust", "ruby", "php",
-        "swift", "docker", "kubernetes", "terraform", "cmake", "xcode",
+        "swift", "docker", "kubernetes", "terraform", "cmake", "xcode"
+    ]
+    private static let metricContextKeys: Set<String> = [
         "cpu", "gpu", "memory", "disk", "cpuTemperature", "fanRPM", "networkDownload", "networkUpload"
     ]
 
@@ -37,6 +39,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private var agentSessionScrollViews: [ContextTouchBarScrollView] = []
     private var agentSessionCards: [AgentSessionCardView] = []
     private var badgeCounts: [ApplicationUnreadCount] = []
+    private var knownMetricContextKeys: Set<String> = []
     private var isStarted = false
     private var cancellables: Set<AnyCancellable> = []
     private var expectedItemCount = 0
@@ -58,9 +61,11 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             .sink { [weak self] snapshot in self?.updateRuntime(snapshot) }
         store.$systemMetrics
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.rebuildTouchBar()
-                self?.updateContextValues()
+            .sink { [weak self] snapshot in
+                guard let self else { return }
+                self.rememberAvailableMetricContextKeys(in: snapshot)
+                self.rebuildTouchBar()
+                self.updateContextValues()
             }
             .store(in: &cancellables)
         activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
@@ -459,14 +464,23 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     private func hasDisplayableContextValue(for item: TouchBarItemConfiguration) -> Bool {
-        guard let key = item.contextKey,
-              Self.adaptiveContextKeys.contains(key) else {
+        guard let key = item.contextKey else { return true }
+        let isDeveloperKey = Self.developerContextKeys.contains(key)
+        let isMetricKey = Self.metricContextKeys.contains(key)
+        guard isDeveloperKey || isMetricKey else { return true }
+        if isMetricKey, knownMetricContextKeys.contains(key) {
             return true
         }
         guard let value = contextValue(for: key) else {
             return false
         }
         return !value.isEmpty && value != "—"
+    }
+
+    private func rememberAvailableMetricContextKeys(in snapshot: SystemMetricsSnapshot) {
+        for key in Self.metricContextKeys where snapshot.value(for: key) != nil {
+            knownMetricContextKeys.insert(key)
+        }
     }
 
     private func contextWidth(
@@ -625,7 +639,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         let adaptiveAvailability = preset.items
             .filter { $0.presentation == .context }
             .compactMap(\.contextKey)
-            .filter(Self.adaptiveContextKeys.contains)
+            .filter { Self.developerContextKeys.contains($0) || Self.metricContextKeys.contains($0) }
             .sorted()
             .map { key in "\(key)=\(hasDisplayableContextValue(for: TouchBarItemConfiguration(label: "", presentation: .context, contextKey: key)))" }
             .joined(separator: "|")
