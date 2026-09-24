@@ -873,6 +873,47 @@ private struct WidthEditor: View {
         if let customWidth = item.customWidth {
             return customWidth
         }
+        let key = item.contextKey ?? ""
+        if ["lyric", "nowPlaying"].contains(key) {
+            switch item.width {
+            case .compact: return 240
+            case .regular: return 420
+            case .wide: return 640
+            case .custom: return 420
+            }
+        }
+        if ["latestMessage", "unreadSummary", "messageBadges"].contains(key) {
+            switch item.width {
+            case .compact: return 180
+            case .regular: return 300
+            case .wide: return 500
+            case .custom: return 300
+            }
+        }
+        if ["cpu", "gpu", "memory", "disk", "cpuTemperature", "fanRPM", "networkDownload", "networkUpload"].contains(key) {
+            switch item.width {
+            case .compact: return 120
+            case .regular: return 160
+            case .wide: return 260
+            case .custom: return 160
+            }
+        }
+        if ["path", "branch", "changes", "python", "node", "java", "go", "rust", "ruby", "php", "swift", "docker", "kubernetes", "terraform", "cmake", "xcode"].contains(key) {
+            switch item.width {
+            case .compact: return 120
+            case .regular: return 220
+            case .wide: return 360
+            case .custom: return 220
+            }
+        }
+        if ["provider", "task", "status", "detail", "duration", "sessions", "event", "tool", "cwd", "message"].contains(key) {
+            switch item.width {
+            case .compact: return 120
+            case .regular: return 220
+            case .wide: return 420
+            case .custom: return 220
+            }
+        }
         switch item.width {
         case .compact:
             return 120
