@@ -24,6 +24,7 @@ public enum TouchBarItemWidth: String, Codable, CaseIterable, Sendable {
     case compact
     case regular
     case wide
+    case custom
 }
 
 public enum TouchBarItemPresentation: String, Codable, CaseIterable, Sendable {
@@ -37,6 +38,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
     public var label: String
     public var symbolName: String?
     public var width: TouchBarItemWidth
+    public var customWidth: Double?
     public var presentation: TouchBarItemPresentation
     public var action: ActionSpec
     public var contextKey: String?
@@ -46,6 +48,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         label: String,
         symbolName: String? = nil,
         width: TouchBarItemWidth = .regular,
+        customWidth: Double? = nil,
         presentation: TouchBarItemPresentation = .button,
         action: ActionSpec = .none,
         contextKey: String? = nil
@@ -54,6 +57,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         self.label = label
         self.symbolName = symbolName
         self.width = width
+        self.customWidth = customWidth
         self.presentation = presentation
         self.action = action
         self.contextKey = contextKey

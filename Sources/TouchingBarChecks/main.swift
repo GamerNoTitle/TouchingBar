@@ -87,6 +87,29 @@ struct TouchingBarChecks {
         customConfiguration.normalize()
         let custom = customConfiguration.presets.first { $0.kind == .custom }
         try expect(custom?.content == .components, "custom presets migrate to free components")
+
+        var widthConfiguration = AppConfiguration()
+        widthConfiguration.presets.append(
+            TouchBarPreset(
+                name: "Width",
+                kind: .custom,
+                content: .components,
+                items: [
+                    TouchBarItemConfiguration(
+                        label: "Lyrics",
+                        width: .custom,
+                        customWidth: 10,
+                        presentation: .context,
+                        contextKey: "lyric"
+                    )
+                ]
+            )
+        )
+        widthConfiguration.normalize()
+        try expect(
+            widthConfiguration.presets.first { $0.kind == .custom }?.items.first?.customWidth == 40,
+            "custom item widths are clamped to a safe minimum"
+        )
     }
 
     private static func checkMetricsPresetMigration() throws {

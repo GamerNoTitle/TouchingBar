@@ -122,6 +122,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         migrateSystemFunctionPreset()
         migrateAgentPresetContext()
         migrateCustomPresetContent()
+        normalizeCustomItemWidths()
         if activePresetID == nil || !presets.contains(where: { $0.id == activePresetID }) {
             activePresetID = presets.first?.id
         }
@@ -130,6 +131,15 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
     private mutating func ensureBuiltInPresets() {
         for builtIn in BuiltInPresets.make() where !presets.contains(where: { $0.kind == builtIn.kind }) {
             presets.append(builtIn)
+        }
+    }
+
+    private mutating func normalizeCustomItemWidths() {
+        for presetIndex in presets.indices {
+            for itemIndex in presets[presetIndex].items.indices {
+                guard let width = presets[presetIndex].items[itemIndex].customWidth else { continue }
+                presets[presetIndex].items[itemIndex].customWidth = max(40, min(1200, width))
+            }
         }
     }
 

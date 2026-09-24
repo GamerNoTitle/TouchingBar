@@ -272,6 +272,8 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             return configuration.symbolName == nil ? 130 : 80
         case .wide:
             return configuration.symbolName == nil ? 220 : 140
+        case .custom:
+            return CGFloat(max(40, min(1200, configuration.customWidth ?? 100)))
         }
     }
 
@@ -485,11 +487,15 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         for configuration: TouchBarItemConfiguration,
         preset: TouchBarPreset
     ) -> CGFloat {
+        if configuration.width == .custom {
+            return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
+        }
         if preset.kind == .developer {
             switch configuration.width {
             case .compact: return 120
             case .regular: return 220
             case .wide: return 360
+            case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
             }
         }
         if preset.kind == .agents {
@@ -497,6 +503,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             case .compact: return 120
             case .regular: return 220
             case .wide: return 420
+            case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
             }
         }
         if preset.kind == .metrics {
@@ -504,6 +511,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             case .compact: return 120
             case .regular: return 160
             case .wide: return 260
+            case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
             }
         }
         if preset.kind == .custom {
@@ -513,6 +521,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 case .compact: return 240
                 case .regular: return 420
                 case .wide: return 640
+                case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
                 }
             }
             if ["latestMessage", "unreadSummary", "messageBadges"].contains(key) {
@@ -520,6 +529,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 case .compact: return 180
                 case .regular: return 300
                 case .wide: return 500
+                case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
                 }
             }
             if Self.metricContextKeys.contains(key) {
@@ -527,6 +537,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 case .compact: return 120
                 case .regular: return 160
                 case .wide: return 260
+                case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
                 }
             }
             if Self.developerContextKeys.contains(key) {
@@ -534,6 +545,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 case .compact: return 120
                 case .regular: return 220
                 case .wide: return 360
+                case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
                 }
             }
             if ["provider", "task", "status", "detail", "duration", "sessions", "event", "tool", "cwd", "message"].contains(key) {
@@ -541,6 +553,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 case .compact: return 120
                 case .regular: return 220
                 case .wide: return 420
+                case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
                 }
             }
         }
@@ -548,6 +561,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         case .compact: return 120
         case .regular: return 220
         case .wide: return 360
+        case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
         }
     }
 
@@ -652,11 +666,6 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         messageViews.forEach { $0.update(badges: badgeCounts, latestMessage: store.runtime.messages.first) }
     }
 
-    private func applyWidth(_ width: TouchBarItemWidth, to view: NSView) {
-        let value = widthValue(width)
-        view.frame = NSRect(x: 0, y: 0, width: value, height: 30)
-    }
-
     private func rebuildSignature(for preset: TouchBarPreset) -> String {
         let items = preset.items.map { item in
             [
@@ -664,6 +673,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 item.label,
                 item.symbolName ?? "",
                 item.width.rawValue,
+                item.customWidth.map { String(format: "%.2f", $0) } ?? "",
                 item.presentation.rawValue,
                 item.contextKey ?? "",
                 item.action.kind.rawValue,
@@ -688,14 +698,6 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             adaptiveAvailability,
             store.configuration.hideTouchBarCloseButton ? "hide-close" : "show-close"
         ].joined(separator: "::")
-    }
-
-    private func widthValue(_ width: TouchBarItemWidth) -> CGFloat {
-        switch width {
-        case .compact: return 36
-        case .regular: return 100
-        case .wide: return 230
-        }
     }
 
     private func updateTouchBarStatus() {

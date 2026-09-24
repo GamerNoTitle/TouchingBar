@@ -791,6 +791,105 @@ private struct ActionItemsEditor: View {
     }
 }
 
+private struct WidthEditor: View {
+    @EnvironmentObject private var store: AppStore
+    let presetID: UUID
+    let itemID: UUID
+    let item: TouchBarItemConfiguration
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Picker("宽度", selection: widthBinding) {
+                Text("紧凑").tag(TouchBarItemWidth.compact)
+                Text("常规").tag(TouchBarItemWidth.regular)
+                Text("宽").tag(TouchBarItemWidth.wide)
+                Text("自定义").tag(TouchBarItemWidth.custom)
+            }
+
+            if selectedWidth == .custom {
+                TextField("", text: customWidthTextBinding)
+                    .frame(width: 72)
+                Text("pt")
+                    .foregroundStyle(.secondary)
+                Slider(value: customWidthBinding, in: 40...1200, step: 1)
+                    .frame(minWidth: 180)
+            }
+        }
+    }
+
+    private var currentItem: TouchBarItemConfiguration? {
+        store.configuration.presets
+            .first(where: { $0.id == presetID })?
+            .items.first(where: { $0.id == itemID })
+    }
+
+    private var selectedWidth: TouchBarItemWidth {
+        currentItem?.width ?? item.width
+    }
+
+    private var widthBinding: Binding<TouchBarItemWidth> {
+        Binding(
+            get: { selectedWidth },
+            set: { value in
+                guard var updated = currentItem else { return }
+                updated.width = value
+                if value == .custom, updated.customWidth == nil {
+                    updated.customWidth = suggestedWidth(for: updated)
+                }
+                store.updateItem(presetID: presetID, item: updated)
+            }
+        )
+    }
+
+    private var customWidthBinding: Binding<Double> {
+        Binding(
+            get: { clamped(currentItem?.customWidth ?? suggestedWidth(for: currentItem ?? item)) },
+            set: { value in
+                guard var updated = currentItem else { return }
+                updated.width = .custom
+                updated.customWidth = clamped(value)
+                store.updateItem(presetID: presetID, item: updated)
+            }
+        )
+    }
+
+    private var customWidthTextBinding: Binding<String> {
+        Binding(
+            get: {
+                let value = currentItem?.customWidth ?? suggestedWidth(for: currentItem ?? item)
+                return String(format: "%.0f", clamped(value))
+            },
+            set: { text in
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty, let value = Double(trimmed), var updated = currentItem else { return }
+                updated.width = .custom
+                updated.customWidth = clamped(value)
+                store.updateItem(presetID: presetID, item: updated)
+            }
+        )
+    }
+
+    private func suggestedWidth(for item: TouchBarItemConfiguration) -> Double {
+        if let customWidth = item.customWidth {
+            return customWidth
+        }
+        switch item.width {
+        case .compact:
+            return 120
+        case .regular:
+            return 220
+        case .wide:
+            return 360
+        case .custom:
+            return 360
+        }
+    }
+
+    private func clamped(_ value: Double) -> Double {
+        max(40, min(1200, value))
+    }
+}
+
 private struct ActionItemEditor: View {
     @EnvironmentObject private var store: AppStore
     let presetID: UUID
@@ -839,11 +938,7 @@ private struct ActionItemEditor: View {
                 }
             }
 
-            Picker("宽度", selection: binding(\.width)) {
-                Text("紧凑").tag(TouchBarItemWidth.compact)
-                Text("常规").tag(TouchBarItemWidth.regular)
-                Text("宽").tag(TouchBarItemWidth.wide)
-            }
+            WidthEditor(presetID: presetID, itemID: itemID, item: item)
             Picker("动作", selection: actionBinding(\.kind)) {
                 ForEach(TouchBarActionKind.allCases, id: \.self) { kind in
                     Text(actionTitle(kind)).tag(kind)
@@ -1141,11 +1236,7 @@ private struct ContextItemEditor: View {
                 Text("详情").tag("detail")
                 Text("耗时").tag("duration")
             }
-            Picker("宽度", selection: widthBinding) {
-                Text("紧凑").tag(TouchBarItemWidth.compact)
-                Text("常规").tag(TouchBarItemWidth.regular)
-                Text("宽").tag(TouchBarItemWidth.wide)
-            }
+            WidthEditor(presetID: presetID, itemID: itemID, item: item)
             HStack {
                 Button("上移") { store.moveItem(presetID: presetID, itemID: itemID, offset: -1) }
                 Button("下移") { store.moveItem(presetID: presetID, itemID: itemID, offset: 1) }
@@ -1188,16 +1279,6 @@ private struct ContextItemEditor: View {
         )
     }
 
-    private var widthBinding: Binding<TouchBarItemWidth> {
-        Binding(
-            get: { currentItem?.width ?? .regular },
-            set: { value in
-                guard var updated = currentItem else { return }
-                updated.width = value
-                store.updateItem(presetID: presetID, item: updated)
-            }
-        )
-    }
 }
 
 private struct MessagesPresetDetail: View {
