@@ -182,6 +182,22 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
                 replacement.id = old.id
                 presets[presetIndex].items[itemIndex] = replacement
             }
+
+            guard presets[presetIndex].items.count >= 6 else { continue }
+            let f5 = presets[presetIndex].items[4]
+            let f6 = presets[presetIndex].items[5]
+            let oldBacklightOrder = f5.action.kind == .keyboardBacklight
+                && f5.action.value == "on"
+                && f6.action.kind == .keyboardBacklight
+                && f6.action.value == "off"
+            if oldBacklightOrder,
+               var newF5 = replacements["F5"],
+               var newF6 = replacements["F6"] {
+                newF5.id = f5.id
+                newF6.id = f6.id
+                presets[presetIndex].items[4] = newF5
+                presets[presetIndex].items[5] = newF6
+            }
         }
     }
 
