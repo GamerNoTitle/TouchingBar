@@ -26,7 +26,8 @@ STAGING_DIR="$TMP_DIR/staging"
 RW_DMG="$TMP_DIR/$APP_NAME-rw.dmg"
 MOUNT_DIR=""
 MOUNT_DEVICE=""
-BACKGROUND_PATH="${DMG_BACKGROUND_PATH:-$TMP_DIR/background.png}"
+BACKGROUND_PATH="${DMG_BACKGROUND_PATH:-$ROOT/assets/TouchingBar600.png}"
+FALLBACK_BACKGROUND_PATH="$TMP_DIR/background.png"
 MOUNTED=0
 
 cleanup() {
@@ -46,6 +47,7 @@ ditto "$APP_DIR" "$STAGING_DIR/$APP_NAME.app"
 ln -s /Applications "$STAGING_DIR/Applications"
 
 if [ ! -f "$BACKGROUND_PATH" ]; then
+    BACKGROUND_PATH="$FALLBACK_BACKGROUND_PATH"
     swift "$ROOT/Scripts/generate-dmg-background.swift" "$BACKGROUND_PATH"
 fi
 
