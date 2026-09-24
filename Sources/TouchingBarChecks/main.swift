@@ -8,6 +8,7 @@ struct TouchingBarChecks {
         try checkBuiltInPresets()
         try checkBackupRoundTrip()
         try checkConfigurationNormalization()
+        try checkImageComponentRoundTrip()
         try checkMetricsPresetMigration()
         try checkMetricsHistoryRange()
         try checkSystemFunctionMigration()
@@ -126,6 +127,33 @@ struct TouchingBarChecks {
             widthConfiguration.presets.first { $0.kind == .custom }?.items.first?.customWidth == 40,
             "custom item widths are clamped to a safe minimum"
         )
+    }
+
+    private static func checkImageComponentRoundTrip() throws {
+        let service = BackupService()
+        let imageItem = TouchBarItemConfiguration(
+            label: "宠物",
+            symbolName: "photo",
+            imagePath: "/tmp/xiaolemi.gif",
+            width: .regular,
+            presentation: .image
+        )
+        var configuration = AppConfiguration()
+        configuration.presets.append(
+            TouchBarPreset(
+                name: "Image",
+                kind: .custom,
+                content: .components,
+                items: [imageItem]
+            )
+        )
+
+        let restored = try service.decode(service.encode(configuration: configuration))
+        let restoredItem = restored.presets
+            .first(where: { $0.name == "Image" })?
+            .items.first
+        try expect(restoredItem?.presentation == .image, "image component presentation round-trips")
+        try expect(restoredItem?.imagePath == "/tmp/xiaolemi.gif", "image component path round-trips")
     }
 
     private static func checkMetricsPresetMigration() throws {

@@ -1,5 +1,7 @@
+import AppKit
 import SwiftUI
 import TouchingBarCore
+import UniformTypeIdentifiers
 
 struct PresetsSettingsView: View {
     @EnvironmentObject private var store: AppStore
@@ -290,7 +292,7 @@ private struct CustomPresetEditor: View {
                     List(selection: $selectedItemID) {
                         ForEach(preset.items) { item in
                             HStack(spacing: 8) {
-                                Image(systemName: item.symbolName ?? "circle")
+                                Image(systemName: item.presentation == .image ? "photo" : (item.symbolName ?? "circle"))
                                     .frame(width: 18)
                                 Text(item.label)
                                 if item.isHidden {
@@ -317,9 +319,12 @@ private struct CustomPresetEditor: View {
                     if let selectedItemID,
                        let item = preset.items.first(where: { $0.id == selectedItemID }) {
                         ScrollView {
-                            if item.presentation == .context {
+                            switch item.presentation {
+                            case .context:
                                 ContextItemEditor(presetID: presetID, itemID: item.id, item: item)
-                            } else {
+                            case .image:
+                                ImageItemEditor(presetID: presetID, itemID: item.id, item: item)
+                            case .button, .label:
                                 ActionItemEditor(presetID: presetID, itemID: item.id, item: item)
                             }
                         }
@@ -356,6 +361,12 @@ private struct CustomPresetEditor: View {
                 }
                 Button("最新消息") {
                     addContext("最新消息", key: "latestMessage", width: .wide, symbol: "text.bubble")
+                }
+            }
+
+            Section("图片") {
+                Button("图片 / 动图") {
+                    addImage()
                 }
             }
 
@@ -477,6 +488,17 @@ private struct CustomPresetEditor: View {
         )
     }
 
+    private func addImage() {
+        add(
+            TouchBarItemConfiguration(
+                label: "图片",
+                symbolName: "photo",
+                width: .regular,
+                presentation: .image
+            )
+        )
+    }
+
     private func addAction(
         _ title: String,
         symbol: String,
@@ -500,6 +522,9 @@ private struct CustomPresetEditor: View {
     }
 
     private func componentDescription(_ item: TouchBarItemConfiguration) -> String {
+        if item.presentation == .image {
+            return "图片 / 动图"
+        }
         if item.presentation == .context {
             return contextTitle(item.contextKey)
         }
@@ -935,6 +960,14 @@ private struct WidthEditor: View {
         if let customWidth = item.customWidth {
             return customWidth
         }
+        if item.presentation == .image {
+            switch item.width {
+            case .compact: return 44
+            case .regular: return 80
+            case .wide: return 140
+            case .custom: return 80
+            }
+        }
         let key = item.contextKey ?? ""
         if ["lyric", "nowPlaying"].contains(key) {
             switch item.width {
@@ -1234,6 +1267,125 @@ private struct ActionItemEditor: View {
         case .lockScreen: return "快速锁屏"
         case .keyboardBacklight: return "键盘背光"
         }
+    }
+}
+
+private struct ImageItemEditor: View {
+    @EnvironmentObject private var store: AppStore
+    let presetID: UUID
+    let itemID: UUID
+    let item: TouchBarItemConfiguration
+
+    var body: some View {
+        Form {
+            TextField("名称", text: binding(\.label))
+
+            HStack {
+                TextField("图片路径", text: pathBinding)
+                Button("选择…") {
+                    chooseImage()
+                }
+            }
+
+            if let previewImage {
+                HStack(spacing: 10) {
+                    Image(nsImage: previewImage)
+                        .resizable()
+                        .interpolation(.high)
+                        .scaledToFit()
+                        .frame(width: 96, height: 38)
+                        .background(Color.black.opacity(0.12), in: RoundedRectangle(cornerRadius: 5))
+                    Text(currentItem?.imagePath ?? item.imagePath ?? "")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .truncationMode(.middle)
+                }
+            } else {
+                Label("尚未选择可读取的图片", systemImage: "photo")
+                    .foregroundStyle(.secondary)
+            }
+
+            Text("支持 PNG、JPEG、GIF、WebP；GIF 会播放动画。Codex 宠物建议选择 gif/1.gif 这类单动作文件，不要直接选择整张 spritesheet.webp。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            WidthEditor(presetID: presetID, itemID: itemID, item: item)
+
+            Toggle("隐藏组件", isOn: hiddenBinding)
+                .toggleStyle(.switch)
+
+            HStack {
+                Button("上移") { store.moveItem(presetID: presetID, itemID: itemID, offset: -1) }
+                Button("下移") { store.moveItem(presetID: presetID, itemID: itemID, offset: 1) }
+                Spacer()
+                Button("删除", role: .destructive) {
+                    store.deleteItem(presetID: presetID, itemID: itemID)
+                }
+            }
+        }
+        .formStyle(.columns)
+        .padding(12)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private var currentItem: TouchBarItemConfiguration? {
+        store.configuration.presets
+            .first(where: { $0.id == presetID })?
+            .items.first(where: { $0.id == itemID })
+    }
+
+    private var previewImage: NSImage? {
+        guard let path = currentItem?.imagePath ?? item.imagePath, !path.isEmpty else { return nil }
+        return NSImage(contentsOfFile: path)
+    }
+
+    private var pathBinding: Binding<String> {
+        Binding(
+            get: { currentItem?.imagePath ?? item.imagePath ?? "" },
+            set: { value in
+                guard var updated = currentItem else { return }
+                updated.imagePath = value.isEmpty ? nil : value
+                store.updateItem(presetID: presetID, item: updated)
+            }
+        )
+    }
+
+    private var hiddenBinding: Binding<Bool> {
+        Binding(
+            get: { currentItem?.isHidden ?? item.isHidden },
+            set: { value in
+                guard var updated = currentItem else { return }
+                updated.isHidden = value
+                store.updateItem(presetID: presetID, item: updated)
+            }
+        )
+    }
+
+    private func binding<Value>(_ keyPath: WritableKeyPath<TouchBarItemConfiguration, Value>) -> Binding<Value> {
+        Binding(
+            get: { currentItem?[keyPath: keyPath] ?? item[keyPath: keyPath] },
+            set: { value in
+                guard var updated = currentItem else { return }
+                updated[keyPath: keyPath] = value
+                store.updateItem(presetID: presetID, item: updated)
+            }
+        )
+    }
+
+    private func chooseImage() {
+        let panel = NSOpenPanel()
+        panel.title = "选择 Touch Bar 图片或动图"
+        panel.allowedContentTypes = [.image]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK,
+              let url = panel.url,
+              var updated = currentItem else {
+            return
+        }
+        updated.imagePath = url.path
+        store.updateItem(presetID: presetID, item: updated)
     }
 }
 

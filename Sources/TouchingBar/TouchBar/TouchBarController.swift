@@ -45,6 +45,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private var presentationTimer: Timer?
     private var activationObserver: NSObjectProtocol?
     private var contextViews: [UUID: ContextTouchBarView] = [:]
+    private var imageViews: [UUID: ImageTouchBarView] = [:]
     private var dualLineLyricViews: [UUID: DualLineLyricsTouchBarView] = [:]
     private var contextConfigurations: [UUID: TouchBarItemConfiguration] = [:]
     private var actionConfigurations: [String: TouchBarItemConfiguration] = [:]
@@ -223,6 +224,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
         actionConfigurations.removeAll()
         contextViews.removeAll()
+        imageViews.removeAll()
         dualLineLyricViews.removeAll()
         contextConfigurations.removeAll()
         nowPlayingViews.removeAll()
@@ -278,6 +280,19 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             )
         }
         return item
+    }
+
+    private func imageWidth(for configuration: TouchBarItemConfiguration) -> CGFloat {
+        switch configuration.width {
+        case .compact:
+            return 44
+        case .regular:
+            return 80
+        case .wide:
+            return 140
+        case .custom:
+            return CGFloat(max(40, min(1200, configuration.customWidth ?? 80)))
+        }
     }
 
     private func customButtonWidth(for configuration: TouchBarItemConfiguration) -> CGFloat {
@@ -440,9 +455,15 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private func addContextViews(from preset: TouchBarPreset, to dashboard: NSStackView) {
         let visibleItems = preset.items.filter { !$0.isHidden && shouldDisplayContextItem($0) }
         let widths = visibleItems.map { configuration in
-            configuration.presentation == .context
-                ? contextWidth(for: configuration, preset: preset)
-                : (preset.kind == .custom ? customButtonWidth(for: configuration) : contextWidth(for: configuration, preset: preset))
+            if configuration.presentation == .context {
+                return contextWidth(for: configuration, preset: preset)
+            }
+            if configuration.presentation == .image {
+                return imageWidth(for: configuration)
+            }
+            return preset.kind == .custom
+                ? customButtonWidth(for: configuration)
+                : contextWidth(for: configuration, preset: preset)
         }
         let spacing: CGFloat = 4
         let contentWidth = widths.reduce(0, +) + CGFloat(max(0, widths.count - 1)) * spacing
@@ -463,6 +484,11 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                     progress: latestNowPlaying?.currentLyricProgress
                 )
                 dualLineLyricViews[configuration.id] = view
+                contextConfigurations[configuration.id] = configuration
+                scrollView.addContentView(view, width: width)
+            } else if configuration.presentation == .image {
+                let view = ImageTouchBarView(path: configuration.imagePath, width: width)
+                imageViews[configuration.id] = view
                 contextConfigurations[configuration.id] = configuration
                 scrollView.addContentView(view, width: width)
             } else if configuration.presentation == .context {
@@ -715,6 +741,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 item.id.uuidString,
                 item.label,
                 item.symbolName ?? "",
+                item.imagePath ?? "",
                 item.width.rawValue,
                 item.customWidth.map { String(format: "%.2f", $0) } ?? "",
                 item.isHidden ? "hidden" : "visible",
@@ -1099,6 +1126,43 @@ private final class DualLineLyricsTouchBarView: NSView {
                 translation.isEmpty ? "none" : translation
             )
         }
+    }
+}
+
+private final class ImageTouchBarView: NSView {
+    private let imageView = NSImageView()
+
+    init(path: String?, width: CGFloat) {
+        super.init(frame: NSRect(x: 0, y: 0, width: width, height: 30))
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+
+        imageView.frame = bounds.insetBy(dx: 1, dy: 1)
+        imageView.autoresizingMask = [.width, .height]
+        imageView.imageAlignment = .alignCenter
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        imageView.imageFrameStyle = .none
+        addSubview(imageView)
+
+        if let path, !path.isEmpty, let image = NSImage(contentsOfFile: path) {
+            imageView.image = image
+            imageView.animates = true
+            toolTip = path
+        } else {
+            let placeholder = NSImage(systemSymbolName: "photo", accessibilityDescription: "图片")
+            placeholder?.isTemplate = true
+            imageView.image = placeholder
+            imageView.contentTintColor = .secondaryLabelColor
+            toolTip = path?.isEmpty == false ? "无法读取图片：\(path ?? "")" : "未选择图片"
+        }
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: frame.width, height: 30)
     }
 }
 

@@ -31,12 +31,14 @@ public enum TouchBarItemPresentation: String, Codable, CaseIterable, Sendable {
     case button
     case label
     case context
+    case image
 }
 
 public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Sendable {
     public var id: UUID
     public var label: String
     public var symbolName: String?
+    public var imagePath: String?
     public var width: TouchBarItemWidth
     public var customWidth: Double?
     public var isHidden: Bool
@@ -50,6 +52,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         id: UUID = UUID(),
         label: String,
         symbolName: String? = nil,
+        imagePath: String? = nil,
         width: TouchBarItemWidth = .regular,
         customWidth: Double? = nil,
         isHidden: Bool = false,
@@ -62,6 +65,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         self.id = id
         self.label = label
         self.symbolName = symbolName
+        self.imagePath = imagePath
         self.width = width
         self.customWidth = customWidth
         self.isHidden = isHidden
@@ -76,6 +80,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         case id
         case label
         case symbolName
+        case imagePath
         case width
         case customWidth
         case isHidden
@@ -91,6 +96,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         label = try container.decodeIfPresent(String.self, forKey: .label) ?? ""
         symbolName = try container.decodeIfPresent(String.self, forKey: .symbolName)
+        imagePath = try container.decodeIfPresent(String.self, forKey: .imagePath)
         width = try container.decodeIfPresent(TouchBarItemWidth.self, forKey: .width) ?? .regular
         customWidth = try container.decodeIfPresent(Double.self, forKey: .customWidth)
         isHidden = try container.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
@@ -106,6 +112,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         try container.encode(id, forKey: .id)
         try container.encode(label, forKey: .label)
         try container.encodeIfPresent(symbolName, forKey: .symbolName)
+        try container.encodeIfPresent(imagePath, forKey: .imagePath)
         try container.encode(width, forKey: .width)
         try container.encodeIfPresent(customWidth, forKey: .customWidth)
         try container.encode(isHidden, forKey: .isHidden)
