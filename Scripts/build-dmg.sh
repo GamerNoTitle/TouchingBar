@@ -27,7 +27,6 @@ RW_DMG="$TMP_DIR/$APP_NAME-rw.dmg"
 MOUNT_DIR=""
 MOUNT_DEVICE=""
 BACKGROUND_PATH="${DMG_BACKGROUND_PATH:-$ROOT/assets/TouchingBar600.png}"
-FALLBACK_BACKGROUND_PATH="$TMP_DIR/background.png"
 MOUNTED=0
 
 cleanup() {
@@ -47,8 +46,17 @@ ditto "$APP_DIR" "$STAGING_DIR/$APP_NAME.app"
 ln -s /Applications "$STAGING_DIR/Applications"
 
 if [ ! -f "$BACKGROUND_PATH" ]; then
-    BACKGROUND_PATH="$FALLBACK_BACKGROUND_PATH"
-    swift "$ROOT/Scripts/generate-dmg-background.swift" "$BACKGROUND_PATH"
+    echo "DMG background not found: $BACKGROUND_PATH" >&2
+    echo "Restore assets/TouchingBar600.png or set DMG_BACKGROUND_PATH to a 600x400 image." >&2
+    exit 1
+fi
+
+if command -v sips >/dev/null 2>&1; then
+    BACKGROUND_WIDTH="$(sips -g pixelWidth "$BACKGROUND_PATH" 2>/dev/null | awk '/pixelWidth/ { print $2 }')"
+    BACKGROUND_HEIGHT="$(sips -g pixelHeight "$BACKGROUND_PATH" 2>/dev/null | awk '/pixelHeight/ { print $2 }')"
+    if [ "$BACKGROUND_WIDTH" != "600" ] || [ "$BACKGROUND_HEIGHT" != "400" ]; then
+        echo "Warning: DMG background is ${BACKGROUND_WIDTH}x${BACKGROUND_HEIGHT}; expected 600x400." >&2
+    fi
 fi
 
 hdiutil create \
