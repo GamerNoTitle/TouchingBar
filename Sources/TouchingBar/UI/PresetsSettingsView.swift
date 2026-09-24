@@ -1002,7 +1002,7 @@ private struct ActionItemEditor: View {
 
             actionDetails
 
-            Toggle("隐藏（调试）", isOn: hiddenBinding)
+            Toggle("隐藏组件", isOn: hiddenBinding)
                 .toggleStyle(.switch)
 
             HStack {
@@ -1315,7 +1315,7 @@ private struct ContextItemEditor: View {
             WidthEditor(presetID: presetID, itemID: itemID, item: item)
             Toggle("显示标签", isOn: showsLabelBinding)
                 .toggleStyle(.switch)
-            Toggle("隐藏（调试）", isOn: hiddenBinding)
+            Toggle("隐藏组件", isOn: hiddenBinding)
                 .toggleStyle(.switch)
             HStack {
                 Button("上移") { store.moveItem(presetID: presetID, itemID: itemID, offset: -1) }

@@ -871,6 +871,10 @@ private final class MarqueeTextField: NSView {
         super.draw(dirtyRect)
         guard !text.isEmpty, bounds.width > 0, bounds.height > 0 else { return }
 
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        NSBezierPath(rect: bounds).addClip()
+
         let style = NSMutableParagraphStyle()
         style.lineBreakMode = .byClipping
         let attributes: [NSAttributedString.Key: Any] = [
