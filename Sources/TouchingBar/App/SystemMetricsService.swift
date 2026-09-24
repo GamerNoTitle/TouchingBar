@@ -14,6 +14,17 @@ struct SystemMetricsSnapshot: Equatable {
 
     static let empty = SystemMetricsSnapshot()
 
+    var hasAnyValue: Bool {
+        cpuUsage != nil
+            || gpuUsage != nil
+            || memoryUsage != nil
+            || diskUsage != nil
+            || cpuTemperature != nil
+            || fanRPM != nil
+            || networkUpload != nil
+            || networkDownload != nil
+    }
+
     func history(for key: String) -> [Double]? {
         histories[key]
     }

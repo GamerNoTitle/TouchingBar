@@ -40,6 +40,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private var agentSessionCards: [AgentSessionCardView] = []
     private var badgeCounts: [ApplicationUnreadCount] = []
     private var knownMetricContextKeys: Set<String> = []
+    private var systemMetricsSampleCount = 0
     private var hasReceivedSystemMetrics = false
     private var isStarted = false
     private var cancellables: Set<AnyCancellable> = []
@@ -63,9 +64,10 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         store.$systemMetrics
             .receive(on: RunLoop.main)
             .sink { [weak self] snapshot in
-                guard let self else { return }
-                self.hasReceivedSystemMetrics = true
+                guard let self, snapshot.hasAnyValue else { return }
+                self.systemMetricsSampleCount += 1
                 self.rememberAvailableMetricContextKeys(in: snapshot)
+                self.hasReceivedSystemMetrics = self.systemMetricsSampleCount >= 2
                 self.rebuildTouchBar()
                 self.updateContextValues()
             }
