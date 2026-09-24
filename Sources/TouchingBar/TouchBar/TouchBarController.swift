@@ -362,6 +362,9 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             let swipe = NSPanGestureRecognizer(target: self, action: #selector(dashboardPan(_:)))
             dashboard.addGestureRecognizer(swipe)
         }
+        dashboard.layoutSubtreeIfNeeded()
+        let dashboardSize = dashboard.intrinsicContentSize
+        dashboard.frame = NSRect(origin: .zero, size: dashboardSize)
         item.view = dashboard
         item.customizationLabel = "Touch Bar 控制面板"
         item.visibilityPriority = .high
@@ -834,7 +837,19 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
 private final class TouchBarDashboardStackView: NSStackView {
     override var intrinsicContentSize: NSSize {
-        NSSize(width: TouchBarLayoutMetrics.dashboardWidth, height: 30)
+        let children = arrangedSubviews
+        let contentWidth = children.reduce(CGFloat.zero) { partial, view in
+            let intrinsic = view.intrinsicContentSize.width
+            let width = intrinsic > 0 && intrinsic != NSView.noIntrinsicMetric
+                ? intrinsic
+                : max(0, view.frame.width)
+            return partial + width
+        }
+        let totalWidth = contentWidth + spacing * CGFloat(max(0, children.count - 1))
+        return NSSize(
+            width: min(TouchBarLayoutMetrics.dashboardWidth, max(1, totalWidth)),
+            height: 30
+        )
     }
 }
 
@@ -842,12 +857,14 @@ private final class ContextTouchBarScrollView: NSScrollView {
     var onVerticalSwipe: ((Int) -> Void)?
 
     private let contentStack = NSStackView()
+    private var preferredWidth: CGFloat
     private var dragStartPoint = NSPoint.zero
     private var dragStartOrigin = NSPoint.zero
     private var didTriggerVerticalSwipe = false
 
     init(contentWidth: CGFloat, spacing: CGFloat) {
-        super.init(frame: NSRect(x: 0, y: 0, width: TouchBarLayoutMetrics.dashboardWidth, height: 30))
+        preferredWidth = min(TouchBarLayoutMetrics.dashboardWidth, max(1, contentWidth))
+        super.init(frame: NSRect(x: 0, y: 0, width: preferredWidth, height: 30))
         drawsBackground = false
         borderType = .noBorder
         hasHorizontalScroller = false
@@ -871,7 +888,7 @@ private final class ContextTouchBarScrollView: NSScrollView {
     }
 
     override var intrinsicContentSize: NSSize {
-        NSSize(width: TouchBarLayoutMetrics.dashboardWidth, height: 30)
+        NSSize(width: preferredWidth, height: 30)
     }
 
     func addContentView(_ view: NSView, width: CGFloat) {
@@ -889,7 +906,9 @@ private final class ContextTouchBarScrollView: NSScrollView {
         }
         let totalWidth = entries.reduce(CGFloat(0)) { $0 + $1.1 }
             + CGFloat(max(0, entries.count - 1)) * contentStack.spacing
-        contentStack.frame = NSRect(x: 0, y: 0, width: totalWidth, height: 30)
+        preferredWidth = min(TouchBarLayoutMetrics.dashboardWidth, max(1, totalWidth))
+        contentStack.frame = NSRect(x: 0, y: 0, width: max(1, totalWidth), height: 30)
+        invalidateIntrinsicContentSize()
         finishLayout()
     }
 
