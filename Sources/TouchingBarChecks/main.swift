@@ -88,6 +88,13 @@ struct TouchingBarChecks {
         let custom = customConfiguration.presets.first { $0.kind == .custom }
         try expect(custom?.content == .components, "custom presets migrate to free components")
 
+        let legacyItemJSON = Data(
+            #"{"id":"00000000-0000-0000-0000-000000000001","label":"Legacy","width":"regular","presentation":"button","action":{"kind":"none"}}"#.utf8
+        )
+        let legacyItem = try JSONDecoder().decode(TouchBarItemConfiguration.self, from: legacyItemJSON)
+        try expect(!legacyItem.isHidden, "legacy items decode with a visible default")
+        try expect(legacyItem.showsLabel, "legacy items decode with labels enabled by default")
+
         var widthConfiguration = AppConfiguration()
         widthConfiguration.presets.append(
             TouchBarPreset(

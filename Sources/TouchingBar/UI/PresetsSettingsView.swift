@@ -293,6 +293,10 @@ private struct CustomPresetEditor: View {
                                 Image(systemName: item.symbolName ?? "circle")
                                     .frame(width: 18)
                                 Text(item.label)
+                                if item.isHidden {
+                                    Image(systemName: "eye.slash")
+                                        .foregroundStyle(.secondary)
+                                }
                                 Spacer()
                                 Text(componentDescription(item))
                                     .font(.caption)
@@ -308,15 +312,18 @@ private struct CustomPresetEditor: View {
                             )
                         }
                     }
-                    .frame(minHeight: 220)
+                    .frame(minHeight: 180, maxHeight: 240)
 
                     if let selectedItemID,
                        let item = preset.items.first(where: { $0.id == selectedItemID }) {
-                        if item.presentation == .context {
-                            ContextItemEditor(presetID: presetID, itemID: item.id, item: item)
-                        } else {
-                            ActionItemEditor(presetID: presetID, itemID: item.id, item: item)
+                        ScrollView {
+                            if item.presentation == .context {
+                                ContextItemEditor(presetID: presetID, itemID: item.id, item: item)
+                            } else {
+                                ActionItemEditor(presetID: presetID, itemID: item.id, item: item)
+                            }
                         }
+                        .frame(maxHeight: 300)
                     }
                 }
             }
@@ -746,6 +753,10 @@ private struct ActionItemsEditor: View {
                                 Image(systemName: symbol)
                             }
                             Text(item.label)
+                            if item.isHidden {
+                                Image(systemName: "eye.slash")
+                                    .foregroundStyle(.secondary)
+                            }
                             Spacer()
                             Text(actionTitle(item.action.kind))
                                 .font(.caption)
@@ -754,11 +765,14 @@ private struct ActionItemsEditor: View {
                         .tag(item.id)
                     }
                 }
-                .frame(minHeight: 150)
+                .frame(minHeight: 130, maxHeight: 220)
 
                 if let selectedItemID,
                    let item = preset.items.first(where: { $0.id == selectedItemID }) {
-                    ActionItemEditor(presetID: presetID, itemID: item.id, item: item)
+                    ScrollView {
+                        ActionItemEditor(presetID: presetID, itemID: item.id, item: item)
+                    }
+                    .frame(maxHeight: 300)
                 }
             } else {
                 SettingsEmptyState(
@@ -876,53 +890,53 @@ private struct WidthEditor: View {
         let key = item.contextKey ?? ""
         if ["lyric", "nowPlaying"].contains(key) {
             switch item.width {
-            case .compact: return 240
-            case .regular: return 420
-            case .wide: return 640
-            case .custom: return 420
+            case .compact: return 120
+            case .regular: return 240
+            case .wide: return 480
+            case .custom: return 240
             }
         }
         if ["latestMessage", "unreadSummary", "messageBadges"].contains(key) {
             switch item.width {
-            case .compact: return 180
-            case .regular: return 300
-            case .wide: return 500
-            case .custom: return 300
+            case .compact: return 90
+            case .regular: return 180
+            case .wide: return 360
+            case .custom: return 180
             }
         }
         if ["cpu", "gpu", "memory", "disk", "cpuTemperature", "fanRPM", "networkDownload", "networkUpload"].contains(key) {
             switch item.width {
-            case .compact: return 120
-            case .regular: return 160
-            case .wide: return 260
-            case .custom: return 160
+            case .compact: return 60
+            case .regular: return 120
+            case .wide: return 240
+            case .custom: return 120
             }
         }
         if ["path", "branch", "changes", "python", "node", "java", "go", "rust", "ruby", "php", "swift", "docker", "kubernetes", "terraform", "cmake", "xcode"].contains(key) {
             switch item.width {
-            case .compact: return 120
-            case .regular: return 220
-            case .wide: return 360
-            case .custom: return 220
+            case .compact: return 60
+            case .regular: return 120
+            case .wide: return 240
+            case .custom: return 120
             }
         }
         if ["provider", "task", "status", "detail", "duration", "sessions", "event", "tool", "cwd", "message"].contains(key) {
             switch item.width {
-            case .compact: return 120
-            case .regular: return 220
-            case .wide: return 420
-            case .custom: return 220
+            case .compact: return 60
+            case .regular: return 120
+            case .wide: return 240
+            case .custom: return 120
             }
         }
         switch item.width {
         case .compact:
-            return 120
+            return 60
         case .regular:
-            return 220
+            return 120
         case .wide:
-            return 360
+            return 240
         case .custom:
-            return 360
+            return 120
         }
     }
 
@@ -950,7 +964,7 @@ private struct ActionItemEditor: View {
                     Image(systemName: displaySymbolName)
                         .font(.system(size: 16, weight: .semibold))
                         .frame(width: 22)
-                    TextField("输入 SF Symbol 名称", text: optionalBinding(\.symbolName))
+                    TextField("SF Symbol", text: optionalBinding(\.symbolName))
                 }
             } else {
                 Button {
@@ -987,6 +1001,9 @@ private struct ActionItemEditor: View {
             }
 
             actionDetails
+
+            Toggle("隐藏（调试）", isOn: hiddenBinding)
+                .toggleStyle(.switch)
 
             HStack {
                 Button("上移") { store.moveItem(presetID: presetID, itemID: itemID, offset: -1) }
@@ -1053,6 +1070,17 @@ private struct ActionItemEditor: View {
             set: { value in
                 guard var updated = currentItem else { return }
                 updated[keyPath: keyPath] = value
+                store.updateItem(presetID: presetID, item: updated)
+            }
+        )
+    }
+
+    private var hiddenBinding: Binding<Bool> {
+        Binding(
+            get: { currentItem?.isHidden ?? item.isHidden },
+            set: { value in
+                guard var updated = currentItem else { return }
+                updated.isHidden = value
                 store.updateItem(presetID: presetID, item: updated)
             }
         )
@@ -1184,6 +1212,10 @@ private struct ContextItemsEditor: View {
                                 Image(systemName: symbol)
                             }
                             Text(item.label)
+                            if item.isHidden {
+                                Image(systemName: "eye.slash")
+                                    .foregroundStyle(.secondary)
+                            }
                             Spacer()
                             Text(item.presentation == .context ? contextTitle(item.contextKey) : "动作按钮")
                                 .font(.caption)
@@ -1192,15 +1224,18 @@ private struct ContextItemsEditor: View {
                         .tag(item.id)
                     }
                 }
-                .frame(minHeight: 160)
+                .frame(minHeight: 130, maxHeight: 220)
 
                 if let selectedItemID,
                    let item = preset.items.first(where: { $0.id == selectedItemID }) {
-                    if item.presentation == .context {
-                        ContextItemEditor(presetID: presetID, itemID: item.id, item: item)
-                    } else {
-                        ActionItemEditor(presetID: presetID, itemID: item.id, item: item)
+                    ScrollView {
+                        if item.presentation == .context {
+                            ContextItemEditor(presetID: presetID, itemID: item.id, item: item)
+                        } else {
+                            ActionItemEditor(presetID: presetID, itemID: item.id, item: item)
+                        }
                     }
+                    .frame(maxHeight: 300)
                 }
             }
         }
@@ -1278,6 +1313,10 @@ private struct ContextItemEditor: View {
                 Text("耗时").tag("duration")
             }
             WidthEditor(presetID: presetID, itemID: itemID, item: item)
+            Toggle("显示标签", isOn: showsLabelBinding)
+                .toggleStyle(.switch)
+            Toggle("隐藏（调试）", isOn: hiddenBinding)
+                .toggleStyle(.switch)
             HStack {
                 Button("上移") { store.moveItem(presetID: presetID, itemID: itemID, offset: -1) }
                 Button("下移") { store.moveItem(presetID: presetID, itemID: itemID, offset: 1) }
@@ -1296,6 +1335,28 @@ private struct ContextItemEditor: View {
         store.configuration.presets
             .first(where: { $0.id == presetID })?
             .items.first(where: { $0.id == itemID })
+    }
+
+    private var showsLabelBinding: Binding<Bool> {
+        Binding(
+            get: { currentItem?.showsLabel ?? item.showsLabel },
+            set: { value in
+                guard var updated = currentItem else { return }
+                updated.showsLabel = value
+                store.updateItem(presetID: presetID, item: updated)
+            }
+        )
+    }
+
+    private var hiddenBinding: Binding<Bool> {
+        Binding(
+            get: { currentItem?.isHidden ?? item.isHidden },
+            set: { value in
+                guard var updated = currentItem else { return }
+                updated.isHidden = value
+                store.updateItem(presetID: presetID, item: updated)
+            }
+        )
     }
 
     private func stringBinding(_ keyPath: WritableKeyPath<TouchBarItemConfiguration, String>) -> Binding<String> {

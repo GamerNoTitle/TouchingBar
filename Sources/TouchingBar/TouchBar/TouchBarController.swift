@@ -348,7 +348,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         to dashboard: NSStackView,
         width: CGFloat
     ) {
-        for configuration in preset.items {
+        for configuration in preset.items where !configuration.isHidden {
             dashboard.addArrangedSubview(
                 makeActionButtonView(configuration, preset: preset, width: width)
             )
@@ -422,7 +422,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     private func addContextViews(from preset: TouchBarPreset, to dashboard: NSStackView) {
-        let visibleItems = preset.items.filter { shouldDisplayContextItem($0) }
+        let visibleItems = preset.items.filter { !$0.isHidden && shouldDisplayContextItem($0) }
         let widths = visibleItems.map { configuration in
             configuration.presentation == .context
                 ? contextWidth(for: configuration, preset: preset)
@@ -441,7 +441,11 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         for (index, configuration) in visibleItems.enumerated() {
             let width = widths[index]
             if configuration.presentation == .context {
-                let view = ContextTouchBarView(title: configuration.label, width: width)
+                let view = ContextTouchBarView(
+                    title: configuration.label,
+                    width: width,
+                    showsLabel: configuration.showsLabel
+                )
                 updateContextView(view, key: configuration.contextKey ?? "")
                 view.frame = NSRect(x: 0, y: 0, width: width, height: 30)
                 contextViews[configuration.id] = view
@@ -492,25 +496,25 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         }
         if preset.kind == .developer {
             switch configuration.width {
-            case .compact: return 120
-            case .regular: return 220
-            case .wide: return 360
+            case .compact: return 60
+            case .regular: return 120
+            case .wide: return 240
             case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
             }
         }
         if preset.kind == .agents {
             switch configuration.width {
-            case .compact: return 120
-            case .regular: return 220
-            case .wide: return 420
+            case .compact: return 60
+            case .regular: return 120
+            case .wide: return 240
             case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
             }
         }
         if preset.kind == .metrics {
             switch configuration.width {
-            case .compact: return 120
-            case .regular: return 160
-            case .wide: return 260
+            case .compact: return 60
+            case .regular: return 120
+            case .wide: return 240
             case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
             }
         }
@@ -518,49 +522,49 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             let key = configuration.contextKey ?? ""
             if ["lyric", "nowPlaying"].contains(key) {
                 switch configuration.width {
-                case .compact: return 240
-                case .regular: return 420
-                case .wide: return 640
+                case .compact: return 120
+                case .regular: return 240
+                case .wide: return 480
                 case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
                 }
             }
             if ["latestMessage", "unreadSummary", "messageBadges"].contains(key) {
                 switch configuration.width {
-                case .compact: return 180
-                case .regular: return 300
-                case .wide: return 500
+                case .compact: return 90
+                case .regular: return 180
+                case .wide: return 360
                 case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
                 }
             }
             if Self.metricContextKeys.contains(key) {
                 switch configuration.width {
-                case .compact: return 120
-                case .regular: return 160
-                case .wide: return 260
+                case .compact: return 60
+                case .regular: return 120
+                case .wide: return 240
                 case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
                 }
             }
             if Self.developerContextKeys.contains(key) {
                 switch configuration.width {
-                case .compact: return 120
-                case .regular: return 220
-                case .wide: return 360
+                case .compact: return 60
+                case .regular: return 120
+                case .wide: return 240
                 case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
                 }
             }
             if ["provider", "task", "status", "detail", "duration", "sessions", "event", "tool", "cwd", "message"].contains(key) {
                 switch configuration.width {
-                case .compact: return 120
-                case .regular: return 220
-                case .wide: return 420
+                case .compact: return 60
+                case .regular: return 120
+                case .wide: return 240
                 case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
                 }
             }
         }
         switch configuration.width {
-        case .compact: return 120
-        case .regular: return 220
-        case .wide: return 360
+        case .compact: return 60
+        case .regular: return 120
+        case .wide: return 240
         case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
         }
     }
@@ -674,6 +678,8 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 item.symbolName ?? "",
                 item.width.rawValue,
                 item.customWidth.map { String(format: "%.2f", $0) } ?? "",
+                item.isHidden ? "hidden" : "visible",
+                item.showsLabel ? "label" : "no-label",
                 item.presentation.rawValue,
                 item.contextKey ?? "",
                 item.action.kind.rawValue,
@@ -826,9 +832,10 @@ private final class ContextTouchBarView: NSView {
     private let preferredWidth: CGFloat
     private let baseTitle: String
 
-    init(title: String, width: CGFloat) {
+    init(title: String, width: CGFloat, showsLabel: Bool = true) {
         baseTitle = title
         titleLabel = NSTextField(labelWithString: title.uppercased())
+        titleLabel.isHidden = !showsLabel
         preferredWidth = width
         super.init(frame: NSRect(x: 0, y: 0, width: width, height: 30))
 
@@ -875,6 +882,9 @@ private final class ContextTouchBarView: NSView {
             stack.topAnchor.constraint(equalTo: topAnchor, constant: 1),
             stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -1)
         ])
+        if ProcessInfo.processInfo.environment["TOUCHINGBAR_DEBUG"] == "1" {
+            NSLog("TouchBar context view title=%@ showsLabel=%@ width=%.0f", title, showsLabel ? "true" : "false", width)
+        }
     }
 
     required init?(coder: NSCoder) {

@@ -131,10 +131,25 @@ final class AppStore: ObservableObject {
         let count = configuration.presets.count
         let target = (currentIndex + offset + count) % count
         updateConfiguration { $0.activePresetID = $0.presets[target].id }
+        persistActivePresetSelection()
     }
 
     func selectPreset(id: UUID) {
         updateConfiguration { $0.activePresetID = id }
+        persistActivePresetSelection()
+    }
+
+    private func persistActivePresetSelection() {
+        guard savedConfiguration.activePresetID != configuration.activePresetID else { return }
+        var persisted = savedConfiguration
+        persisted.activePresetID = configuration.activePresetID
+        do {
+            try configurationStore.save(persisted)
+            savedConfiguration = persisted
+            hasUnsavedChanges = configuration != savedConfiguration
+        } catch {
+            lastError = error.localizedDescription
+        }
     }
 
     func replacePreset(_ preset: TouchBarPreset) {

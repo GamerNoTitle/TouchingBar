@@ -39,6 +39,8 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
     public var symbolName: String?
     public var width: TouchBarItemWidth
     public var customWidth: Double?
+    public var isHidden: Bool
+    public var showsLabel: Bool
     public var presentation: TouchBarItemPresentation
     public var action: ActionSpec
     public var contextKey: String?
@@ -49,6 +51,8 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         symbolName: String? = nil,
         width: TouchBarItemWidth = .regular,
         customWidth: Double? = nil,
+        isHidden: Bool = false,
+        showsLabel: Bool = true,
         presentation: TouchBarItemPresentation = .button,
         action: ActionSpec = .none,
         contextKey: String? = nil
@@ -58,9 +62,52 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         self.symbolName = symbolName
         self.width = width
         self.customWidth = customWidth
+        self.isHidden = isHidden
+        self.showsLabel = showsLabel
         self.presentation = presentation
         self.action = action
         self.contextKey = contextKey
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case label
+        case symbolName
+        case width
+        case customWidth
+        case isHidden
+        case showsLabel
+        case presentation
+        case action
+        case contextKey
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        label = try container.decodeIfPresent(String.self, forKey: .label) ?? ""
+        symbolName = try container.decodeIfPresent(String.self, forKey: .symbolName)
+        width = try container.decodeIfPresent(TouchBarItemWidth.self, forKey: .width) ?? .regular
+        customWidth = try container.decodeIfPresent(Double.self, forKey: .customWidth)
+        isHidden = try container.decodeIfPresent(Bool.self, forKey: .isHidden) ?? false
+        showsLabel = try container.decodeIfPresent(Bool.self, forKey: .showsLabel) ?? true
+        presentation = try container.decodeIfPresent(TouchBarItemPresentation.self, forKey: .presentation) ?? .button
+        action = try container.decodeIfPresent(ActionSpec.self, forKey: .action) ?? .none
+        contextKey = try container.decodeIfPresent(String.self, forKey: .contextKey)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(label, forKey: .label)
+        try container.encodeIfPresent(symbolName, forKey: .symbolName)
+        try container.encode(width, forKey: .width)
+        try container.encodeIfPresent(customWidth, forKey: .customWidth)
+        try container.encode(isHidden, forKey: .isHidden)
+        try container.encode(showsLabel, forKey: .showsLabel)
+        try container.encode(presentation, forKey: .presentation)
+        try container.encode(action, forKey: .action)
+        try container.encodeIfPresent(contextKey, forKey: .contextKey)
     }
 }
 
