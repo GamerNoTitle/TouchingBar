@@ -53,6 +53,7 @@ final class StatusBarController: NSObject {
 
     private func rebuildMenu() {
         guard let statusItem else { return }
+        let isDebugMode = ProcessInfo.processInfo.environment["TOUCHINGBAR_DEBUG"] == "1"
         let menu = NSMenu()
         menu.autoenablesItems = false
         menu.minimumWidth = 260
@@ -80,13 +81,15 @@ final class StatusBarController: NSObject {
         presetItem.submenu = presetMenu
         menu.addItem(presetItem)
 
-        let statusLineItem = menuItem(
-            title: store.touchBarStatus,
-            action: nil,
-            keyEquivalent: ""
-        )
-        statusLineItem.isEnabled = false
-        menu.addItem(statusLineItem)
+        if isDebugMode {
+            let statusLineItem = menuItem(
+                title: store.touchBarStatus,
+                action: nil,
+                keyEquivalent: ""
+            )
+            statusLineItem.isEnabled = false
+            menu.addItem(statusLineItem)
+        }
 
         menu.addItem(.separator())
 
@@ -106,7 +109,7 @@ final class StatusBarController: NSObject {
 
         statusItem.menu = menu
 
-        if ProcessInfo.processInfo.environment["TOUCHINGBAR_DEBUG"] == "1" {
+        if isDebugMode {
             NSLog(
                 "TouchingBar menu titles: %@; status appearance=%@",
                 menu.items.map(\.title).joined(separator: " | "),
