@@ -1287,18 +1287,54 @@ private struct PetItemEditor: View {
         Form {
             TextField("名称", text: binding(\.label))
 
-            Picker("已安装宠物", selection: petBinding) {
-                Text("未选择").tag("")
-                ForEach(installedPets) { pet in
-                    Text(pet.displayName).tag(pet.id)
+            HStack {
+                Text("已安装宠物")
+                Spacer()
+                Menu {
+                    Button("未选择") {
+                        petBinding.wrappedValue = ""
+                    }
+                    ForEach(installedPets) { pet in
+                        Button(pet.displayName) {
+                            petBinding.wrappedValue = pet.id
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Text(selectedPet?.displayName ?? "未选择")
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.caption2)
+                    }
+                    .frame(width: 190, alignment: .trailing)
                 }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
             }
 
             if let selectedPet, !selectedPet.assets.isEmpty {
-                Picker("动作 / 图片", selection: petAssetBinding) {
-                    ForEach(selectedPet.assets) { asset in
-                        Text(asset.name).tag(asset.id)
+                HStack {
+                    Text("动作 / 图片")
+                    Spacer()
+                    Menu {
+                        ForEach(selectedPet.assets) { asset in
+                            Button(asset.name) {
+                                petAssetBinding.wrappedValue = asset.id
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(selectedAsset?.name ?? "选择")
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.caption2)
+                        }
+                        .frame(width: 190, alignment: .trailing)
                     }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
                 }
             }
 
@@ -1326,6 +1362,10 @@ private struct PetItemEditor: View {
                             Text(selectedAsset.name)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .frame(maxWidth: 260, alignment: .leading)
+                                .help(selectedAsset.name)
                         }
                     }
                 }
