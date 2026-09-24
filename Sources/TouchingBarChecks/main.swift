@@ -36,6 +36,9 @@ struct TouchingBarChecks {
 
         let systemItems = BuiltInPresets.systemFunctions().items
         try expect(systemItems[0].action.kind == .brightness && systemItems[0].action.value == "down", "F1 brightness down")
+        let music = BuiltInPresets.music()
+        try expect(music.items.count == 3, "music preset has three independent media controls")
+        try expect(music.items.map(\.action.media) == [.previous, .playPause, .next], "music controls are separate components")
         try expect(systemItems[1].action.kind == .brightness && systemItems[1].action.value == "up", "F2 brightness up")
         try expect(systemItems[2].action.kind == .missionControl, "F3 Mission Control")
         try expect(systemItems[3].action.kind == .lockScreen, "F4 locks the screen")
@@ -76,6 +79,14 @@ struct TouchingBarChecks {
         let loaded = try store.load()
         try expect(!loaded.presets.isEmpty, "empty configurations are normalized")
         try expect(loaded.activePresetID == loaded.presets.first?.id, "normalized configuration selects a preset")
+
+        var customConfiguration = AppConfiguration()
+        customConfiguration.presets.append(
+            TouchBarPreset(name: "Custom", kind: .custom, content: .actions)
+        )
+        customConfiguration.normalize()
+        let custom = customConfiguration.presets.first { $0.kind == .custom }
+        try expect(custom?.content == .components, "custom presets migrate to free components")
     }
 
     private static func checkMetricsPresetMigration() throws {

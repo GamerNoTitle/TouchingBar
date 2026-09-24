@@ -136,7 +136,7 @@ final class AppStore: ObservableObject {
     }
 
     func addPreset() {
-        let preset = TouchBarPreset(name: "自定义配置", kind: .custom)
+        let preset = TouchBarPreset(name: "自定义配置", kind: .custom, content: .components)
         updateConfiguration { configuration in
             configuration.presets.append(preset)
             configuration.activePresetID = preset.id
@@ -168,11 +168,31 @@ final class AppStore: ObservableObject {
     }
 
     func addItem(toPresetID presetID: UUID) {
+        addItem(
+            toPresetID: presetID,
+            item: TouchBarItemConfiguration(label: "新按钮", symbolName: "circle", action: .none)
+        )
+    }
+
+    func addItem(toPresetID presetID: UUID, item: TouchBarItemConfiguration) {
         updateConfiguration { configuration in
             guard let index = configuration.presets.firstIndex(where: { $0.id == presetID }) else { return }
-            configuration.presets[index].items.append(
-                TouchBarItemConfiguration(label: "新按钮", symbolName: "circle", action: .none)
-            )
+            configuration.presets[index].items.append(item)
+        }
+    }
+
+    func moveItems(presetID: UUID, fromOffsets: IndexSet, toOffset: Int) {
+        updateConfiguration { configuration in
+            guard let index = configuration.presets.firstIndex(where: { $0.id == presetID }) else { return }
+            var items = configuration.presets[index].items
+            let moving = fromOffsets.sorted().map { items[$0] }
+            let removedBeforeDestination = fromOffsets.filter { $0 < toOffset }.count
+            for source in fromOffsets.sorted(by: >) {
+                items.remove(at: source)
+            }
+            let destination = max(0, min(items.count, toOffset - removedBeforeDestination))
+            items.insert(contentsOf: moving, at: destination)
+            configuration.presets[index].items = items
         }
     }
 

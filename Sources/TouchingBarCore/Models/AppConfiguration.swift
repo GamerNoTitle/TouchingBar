@@ -121,6 +121,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         migrateDeveloperPresetToolchains()
         migrateSystemFunctionPreset()
         migrateAgentPresetContext()
+        migrateCustomPresetContent()
         if activePresetID == nil || !presets.contains(where: { $0.id == activePresetID }) {
             activePresetID = presets.first?.id
         }
@@ -129,6 +130,12 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
     private mutating func ensureBuiltInPresets() {
         for builtIn in BuiltInPresets.make() where !presets.contains(where: { $0.kind == builtIn.kind }) {
             presets.append(builtIn)
+        }
+    }
+
+    private mutating func migrateCustomPresetContent() {
+        for index in presets.indices where presets[index].kind == .custom {
+            presets[index].content = .components
         }
     }
 

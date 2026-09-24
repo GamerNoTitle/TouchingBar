@@ -114,31 +114,41 @@ private struct PresetDetailView: View {
                     .disabled(preset.id == store.configuration.activePresetID)
                 }
 
-                HStack {
-                    Picker("内容类型", selection: contentBinding(preset)) {
-                        ForEach(PresetContent.allCases, id: \.self) { content in
-                            Text(contentTitle(content)).tag(content)
+                if preset.kind == .custom {
+                    Label("自由组件 · 每个组件都是独立的 Touch Bar 项目", systemImage: "slider.horizontal.3")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    HStack {
+                        Picker("内容类型", selection: contentBinding(preset)) {
+                            ForEach(PresetContent.allCases, id: \.self) { content in
+                                Text(contentTitle(content)).tag(content)
+                            }
                         }
-                    }
-                    .frame(maxWidth: 300)
+                        .frame(maxWidth: 300)
 
-                    Picker("分类", selection: kindBinding(preset)) {
-                        ForEach(PresetKind.allCases, id: \.self) { kind in
-                            Text(kindTitle(kind)).tag(kind)
+                        Picker("分类", selection: kindBinding(preset)) {
+                            ForEach(PresetKind.allCases, id: \.self) { kind in
+                                Text(kindTitle(kind)).tag(kind)
+                            }
                         }
+                        .frame(maxWidth: 260)
                     }
-                    .frame(maxWidth: 260)
                 }
 
                 Divider()
 
-                switch preset.content {
-                case .unreadMessages:
-                    MessagesPresetDetail()
-                case .actions, .nowPlaying:
-                    ActionItemsEditor(presetID: preset.id, selectedItemID: $selectedItemID)
-                case .developerContext, .agentContext, .components:
-                    ContextItemsEditor(presetID: preset.id, selectedItemID: $selectedItemID)
+                if preset.kind == .custom {
+                    CustomPresetEditor(presetID: preset.id, selectedItemID: $selectedItemID)
+                } else {
+                    switch preset.content {
+                    case .unreadMessages:
+                        MessagesPresetDetail()
+                    case .actions, .nowPlaying:
+                        ActionItemsEditor(presetID: preset.id, selectedItemID: $selectedItemID)
+                    case .developerContext, .agentContext, .components:
+                        ContextItemsEditor(presetID: preset.id, selectedItemID: $selectedItemID)
+                    }
                 }
             }
             .padding(18)
@@ -200,6 +210,320 @@ private struct PresetDetailView: View {
         case .metrics: return "系统资源"
         case .music: return "音乐"
         case .custom: return "自定义"
+        }
+    }
+}
+
+private struct ContextComponentOption: Identifiable {
+    let id: String
+    let title: String
+    let key: String
+    let width: TouchBarItemWidth
+    let symbol: String
+}
+
+private struct CustomPresetEditor: View {
+    @EnvironmentObject private var store: AppStore
+    let presetID: UUID
+    @Binding var selectedItemID: UUID?
+
+    private static let metricOptions: [ContextComponentOption] = [
+        .init(id: "cpu", title: "CPU", key: "cpu", width: .compact, symbol: "cpu"),
+        .init(id: "gpu", title: "GPU", key: "gpu", width: .compact, symbol: "display"),
+        .init(id: "memory", title: "内存", key: "memory", width: .compact, symbol: "memorychip"),
+        .init(id: "disk", title: "硬盘", key: "disk", width: .compact, symbol: "internaldrive"),
+        .init(id: "cpuTemperature", title: "CPU 温度", key: "cpuTemperature", width: .compact, symbol: "thermometer.medium"),
+        .init(id: "fanRPM", title: "风扇", key: "fanRPM", width: .compact, symbol: "fan"),
+        .init(id: "networkDownload", title: "下载速度", key: "networkDownload", width: .compact, symbol: "arrow.down.circle"),
+        .init(id: "networkUpload", title: "上传速度", key: "networkUpload", width: .compact, symbol: "arrow.up.circle")
+    ]
+
+    private static let developerOptions: [ContextComponentOption] = [
+        .init(id: "path", title: "路径", key: "path", width: .wide, symbol: "folder"),
+        .init(id: "branch", title: "Git 分支", key: "branch", width: .regular, symbol: "arrow.triangle.branch"),
+        .init(id: "changes", title: "改动数量", key: "changes", width: .regular, symbol: "plus.forwardslash.minus"),
+        .init(id: "python", title: "Python", key: "python", width: .regular, symbol: "chevron.left.forwardslash.chevron.right"),
+        .init(id: "node", title: "Node", key: "node", width: .regular, symbol: "shippingbox"),
+        .init(id: "java", title: "Java", key: "java", width: .regular, symbol: "cup.and.saucer"),
+        .init(id: "go", title: "Go", key: "go", width: .regular, symbol: "bolt.horizontal"),
+        .init(id: "rust", title: "Rust", key: "rust", width: .regular, symbol: "gearshape.2"),
+        .init(id: "swift", title: "Swift", key: "swift", width: .regular, symbol: "swift"),
+        .init(id: "docker", title: "Docker", key: "docker", width: .regular, symbol: "shippingbox.fill"),
+        .init(id: "xcode", title: "Xcode", key: "xcode", width: .regular, symbol: "hammer")
+    ]
+
+    private static let agentOptions: [ContextComponentOption] = [
+        .init(id: "provider", title: "Agent 厂商", key: "provider", width: .regular, symbol: "person.crop.circle"),
+        .init(id: "task", title: "Agent 任务", key: "task", width: .wide, symbol: "text.bubble"),
+        .init(id: "status", title: "Agent 状态", key: "status", width: .regular, symbol: "circle.dashed"),
+        .init(id: "detail", title: "Agent 详情", key: "detail", width: .wide, symbol: "text.alignleft"),
+        .init(id: "duration", title: "Agent 耗时", key: "duration", width: .regular, symbol: "timer"),
+        .init(id: "sessions", title: "Agent 会话", key: "sessions", width: .wide, symbol: "rectangle.stack"),
+        .init(id: "cwd", title: "Agent 目录", key: "cwd", width: .wide, symbol: "folder")
+    ]
+
+    private var preset: TouchBarPreset? {
+        store.configuration.presets.first(where: { $0.id == presetID })
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("组件").font(.headline)
+                    Text("每个组件都是独立的 Touch Bar 项目，可以分别添加、排序与删除。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                addComponentMenu
+            }
+
+            if let preset {
+                if preset.items.isEmpty {
+                    SettingsEmptyState(
+                        title: "还没有组件",
+                        systemImage: "square.grid.2x2"
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List(selection: $selectedItemID) {
+                        ForEach(preset.items) { item in
+                            HStack(spacing: 8) {
+                                Image(systemName: item.symbolName ?? "circle")
+                                    .frame(width: 18)
+                                Text(item.label)
+                                Spacer()
+                                Text(componentDescription(item))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .tag(item.id)
+                        }
+                        .onMove { offsets, destination in
+                            store.moveItems(
+                                presetID: presetID,
+                                fromOffsets: offsets,
+                                toOffset: destination
+                            )
+                        }
+                    }
+                    .frame(minHeight: 220)
+
+                    if let selectedItemID,
+                       let item = preset.items.first(where: { $0.id == selectedItemID }) {
+                        if item.presentation == .context {
+                            ContextItemEditor(presetID: presetID, itemID: item.id, item: item)
+                        } else {
+                            ActionItemEditor(presetID: presetID, itemID: item.id, item: item)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var addComponentMenu: some View {
+        Menu {
+            Section("媒体控件") {
+                Button("上一曲") {
+                    addMedia("上一曲", symbol: "backward.fill", command: .previous)
+                }
+                Button("播放/暂停") {
+                    addMedia("播放/暂停", symbol: "playpause.fill", command: .playPause)
+                }
+                Button("下一曲") {
+                    addMedia("下一曲", symbol: "forward.fill", command: .next)
+                }
+            }
+
+            Section("播放与显示") {
+                Button("正在播放") {
+                    addContext("正在播放", key: "nowPlaying", width: .wide, symbol: "music.note")
+                }
+                Button("歌词") {
+                    addContext("歌词", key: "lyric", width: .wide, symbol: "quote.bubble")
+                }
+                Button("未读汇总") {
+                    addContext("未读汇总", key: "unreadSummary", width: .regular, symbol: "message.badge")
+                }
+                Button("最新消息") {
+                    addContext("最新消息", key: "latestMessage", width: .wide, symbol: "text.bubble")
+                }
+            }
+
+            Section("系统资源") {
+                ForEach(Self.metricOptions) { option in
+                    Button(option.title) {
+                        addContext(option)
+                    }
+                }
+            }
+
+            Section("开发者") {
+                ForEach(Self.developerOptions) { option in
+                    Button(option.title) {
+                        addContext(option)
+                    }
+                }
+            }
+
+            Section("Agent") {
+                ForEach(Self.agentOptions) { option in
+                    Button(option.title) {
+                        addContext(option)
+                    }
+                }
+            }
+
+            Section("系统功能") {
+                systemFunctionButtons
+            }
+
+            Section("自定义") {
+                Button("普通按钮") {
+                    addAction("按钮", symbol: "circle", width: .regular, action: .none)
+                }
+                Button("键盘快捷键") {
+                    addAction("快捷键", symbol: "keyboard", width: .regular, action: ActionSpec(kind: .keyboardShortcut))
+                }
+                Button("启动应用") {
+                    addAction("启动应用", symbol: "app", width: .regular, action: ActionSpec(kind: .launchApplication))
+                }
+                Button("打开 URL") {
+                    addAction("打开 URL", symbol: "link", width: .regular, action: ActionSpec(kind: .openURL))
+                }
+                Button("运行命令") {
+                    addAction("运行命令", symbol: "terminal", width: .regular, action: ActionSpec(kind: .runCommand))
+                }
+            }
+        } label: {
+            Label("添加组件", systemImage: "plus")
+        }
+    }
+
+    @ViewBuilder
+    private var systemFunctionButtons: some View {
+        Button("调度中心") {
+            addAction("调度中心", symbol: "rectangle.3.group", width: .compact, action: ActionSpec(kind: .missionControl))
+        }
+        Button("快速锁屏") {
+            addAction("快速锁屏", symbol: "lock.fill", width: .compact, action: ActionSpec(kind: .lockScreen))
+        }
+        Button("亮度减") {
+            addAction("亮度减", symbol: "sun.min", width: .compact, action: ActionSpec(kind: .brightness, value: "down"))
+        }
+        Button("亮度增") {
+            addAction("亮度增", symbol: "sun.max", width: .compact, action: ActionSpec(kind: .brightness, value: "up"))
+        }
+        Button("键盘灯开") {
+            addAction("键盘灯开", symbol: "light.max", width: .compact, action: ActionSpec(kind: .keyboardBacklight, value: "on"))
+        }
+        Button("键盘灯关") {
+            addAction("键盘灯关", symbol: "light.min", width: .compact, action: ActionSpec(kind: .keyboardBacklight, value: "off"))
+        }
+        Button("静音") {
+            addAction("静音", symbol: "speaker.slash.fill", width: .compact, action: ActionSpec(kind: .volume, volume: .mute))
+        }
+        Button("音量减") {
+            addAction("音量减", symbol: "speaker.wave.1.fill", width: .compact, action: ActionSpec(kind: .volume, volume: .down))
+        }
+        Button("音量增") {
+            addAction("音量增", symbol: "speaker.wave.3.fill", width: .compact, action: ActionSpec(kind: .volume, volume: .up))
+        }
+    }
+
+    private func addMedia(_ title: String, symbol: String, command: MediaCommand) {
+        addAction(title, symbol: symbol, width: .compact, action: ActionSpec(kind: .media, media: command))
+    }
+
+    private func addContext(_ option: ContextComponentOption) {
+        addContext(option.title, key: option.key, width: option.width, symbol: option.symbol)
+    }
+
+    private func addContext(
+        _ title: String,
+        key: String,
+        width: TouchBarItemWidth,
+        symbol: String
+    ) {
+        add(
+            TouchBarItemConfiguration(
+                label: title,
+                symbolName: symbol,
+                width: width,
+                presentation: .context,
+                contextKey: key
+            )
+        )
+    }
+
+    private func addAction(
+        _ title: String,
+        symbol: String,
+        width: TouchBarItemWidth,
+        action: ActionSpec
+    ) {
+        add(
+            TouchBarItemConfiguration(
+                label: title,
+                symbolName: symbol,
+                width: width,
+                presentation: .button,
+                action: action
+            )
+        )
+    }
+
+    private func add(_ item: TouchBarItemConfiguration) {
+        store.addItem(toPresetID: presetID, item: item)
+        selectedItemID = item.id
+    }
+
+    private func componentDescription(_ item: TouchBarItemConfiguration) -> String {
+        if item.presentation == .context {
+            return contextTitle(item.contextKey)
+        }
+        if item.action.kind == .media {
+            return "媒体控件"
+        }
+        return actionTitle(item.action.kind)
+    }
+
+    private func contextTitle(_ key: String?) -> String {
+        [
+            "path": "路径", "branch": "Git 分支", "changes": "改动数量",
+            "python": "Python", "node": "Node", "java": "Java", "go": "Go",
+            "rust": "Rust", "swift": "Swift", "docker": "Docker", "xcode": "Xcode",
+            "cpu": "CPU", "gpu": "GPU", "memory": "内存", "disk": "硬盘",
+            "cpuTemperature": "CPU 温度", "fanRPM": "风扇",
+            "networkDownload": "下载速度", "networkUpload": "上传速度",
+            "nowPlaying": "正在播放", "lyric": "当前歌词",
+            "unreadSummary": "未读汇总", "latestMessage": "最新消息",
+            "messageBadges": "消息角标", "provider": "Agent 厂商",
+            "task": "任务", "status": "状态", "detail": "详情",
+            "duration": "耗时", "sessions": "会话列表", "event": "事件",
+            "tool": "工具", "cwd": "工作目录", "message": "消息"
+        ][key ?? ""] ?? "上下文"
+    }
+
+    private func actionTitle(_ kind: TouchBarActionKind) -> String {
+        switch kind {
+        case .none: return "无动作"
+        case .functionKey: return "F 键"
+        case .keyboardShortcut: return "快捷键"
+        case .launchApplication: return "启动应用"
+        case .openURL: return "打开 URL"
+        case .runCommand: return "运行命令"
+        case .media: return "媒体控制"
+        case .volume: return "音量"
+        case .brightness: return "亮度"
+        case .missionControl: return "调度中心"
+        case .spotlight: return "Spotlight"
+        case .dictation: return "听写"
+        case .doNotDisturb: return "专注模式"
+        case .lockScreen: return "快速锁屏"
+        case .keyboardBacklight: return "键盘背光"
         }
     }
 }
@@ -591,8 +915,13 @@ private struct ContextItemEditor: View {
                 Text("常规").tag(TouchBarItemWidth.regular)
                 Text("宽").tag(TouchBarItemWidth.wide)
             }
-            Button("删除字段", role: .destructive) {
-                store.deleteItem(presetID: presetID, itemID: itemID)
+            HStack {
+                Button("上移") { store.moveItem(presetID: presetID, itemID: itemID, offset: -1) }
+                Button("下移") { store.moveItem(presetID: presetID, itemID: itemID, offset: 1) }
+                Spacer()
+                Button("删除", role: .destructive) {
+                    store.deleteItem(presetID: presetID, itemID: itemID)
+                }
             }
         }
         .formStyle(.columns)

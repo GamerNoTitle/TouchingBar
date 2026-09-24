@@ -10,6 +10,12 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private static let systemTrayIdentifier = NSTouchBarItem.Identifier("app.touchingbar.system-tray")
     private static let nowPlayingIdentifier = NSTouchBarItem.Identifier("app.touchingbar.now-playing")
     private static let messagesIdentifier = NSTouchBarItem.Identifier("app.touchingbar.messages")
+    private static let customEmptyIdentifier = NSTouchBarItem.Identifier("app.touchingbar.custom.empty")
+    private static let lyricsIdentifier = NSTouchBarItem.Identifier("app.touchingbar.custom.lyrics")
+
+    private static func customItemIdentifier(for id: UUID) -> NSTouchBarItem.Identifier {
+        NSTouchBarItem.Identifier("app.touchingbar.custom.\(id.uuidString)")
+    }
     private static let developerContextKeys: Set<String> = [
         "path", "branch", "changes", "python", "node", "java", "go", "rust", "ruby", "php",
         "swift", "docker", "kubernetes", "terraform", "cmake", "xcode"
@@ -33,6 +39,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private var contextViews: [UUID: ContextTouchBarView] = [:]
     private var contextConfigurations: [UUID: TouchBarItemConfiguration] = [:]
     private var actionConfigurations: [String: TouchBarItemConfiguration] = [:]
+    private var customItemConfigurations: [String: TouchBarItemConfiguration] = [:]
     private var nowPlayingViews: [NowPlayingTouchBarView] = []
     private var messageViews: [MessagesTouchBarView] = []
     private var latestNowPlaying: NowPlayingSnapshot?
@@ -201,6 +208,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         lastRebuildSignature = signature
 
         actionConfigurations.removeAll()
+        customItemConfigurations.removeAll()
         contextViews.removeAll()
         contextConfigurations.removeAll()
         nowPlayingViews.removeAll()
@@ -209,13 +217,34 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         agentSessionCards.removeAll()
         createdItemIdentifiers.removeAll()
 
-        let identifiers: [NSTouchBarItem.Identifier] = [Self.actionDashboardIdentifier]
+        let identifiers: [NSTouchBarItem.Identifier]
+        if activePreset.kind == .custom {
+            let visibleItems = activePreset.items.filter { shouldDisplayContextItem($0) }
+            customItemConfigurations = Dictionary(
+                uniqueKeysWithValues: visibleItems.map {
+                    (Self.customItemIdentifier(for: $0.id).rawValue, $0)
+                }
+            )
+            identifiers = visibleItems.isEmpty
+                ? [Self.customEmptyIdentifier]
+                : visibleItems.map { Self.customItemIdentifier(for: $0.id) }
+        } else if activePreset.kind == .music {
+            let visibleItems = activePreset.items.filter { shouldDisplayContextItem($0) }
+            customItemConfigurations = Dictionary(
+                uniqueKeysWithValues: visibleItems.map {
+                    (Self.customItemIdentifier(for: $0.id).rawValue, $0)
+                }
+            )
+            identifiers = visibleItems.map { Self.customItemIdentifier(for: $0.id) } + [Self.lyricsIdentifier]
+        } else {
+            identifiers = [Self.actionDashboardIdentifier]
+        }
 
         let touchBar = NSTouchBar()
         touchBar.delegate = self
-        touchBar.customizationIdentifier = NSTouchBar.CustomizationIdentifier("app.touchingbar.main")
+        touchBar.customizationIdentifier = NSTouchBar.CustomizationIdentifier("app.touchingbar.\(activePreset.id.uuidString)")
         touchBar.defaultItemIdentifiers = identifiers
-        touchBar.customizationAllowedItemIdentifiers = identifiers
+        touchBar.customizationAllowedItemIdentifiers = identifiers + [.flexibleSpace]
         self.touchBar = touchBar
         expectedItemCount = identifiers.count
         if ProcessInfo.processInfo.environment["TOUCHINGBAR_DEBUG"] == "1" {
@@ -227,7 +256,13 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
     func touchBar(_ touchBar: NSTouchBar, makeItemForIdentifier identifier: NSTouchBarItem.Identifier) -> NSTouchBarItem? {
         let item: NSCustomTouchBarItem?
-        if identifier == Self.actionDashboardIdentifier {
+        if identifier == Self.customEmptyIdentifier {
+            item = makeCustomEmptyItem()
+        } else if identifier == Self.lyricsIdentifier {
+            item = makeLyricsItem()
+        } else if let configuration = customItemConfigurations[identifier.rawValue] {
+            item = makeCustomItem(configuration, identifier: identifier)
+        } else if identifier == Self.actionDashboardIdentifier {
             item = makePresetDashboardItem()
         } else {
             item = nil
@@ -252,6 +287,71 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             )
         }
         return item
+    }
+
+    private func makeCustomEmptyItem() -> NSCustomTouchBarItem {
+        let item = NSCustomTouchBarItem(identifier: Self.customEmptyIdentifier)
+        let label = NSTextField(labelWithString: "请在设置中添加组件")
+        label.font = .systemFont(ofSize: 0, weight: .medium)
+        label.textColor = .secondaryLabelColor
+        let wrapper = NSView(frame: NSRect(x: 0, y: 0, width: 280, height: 30))
+        label.translatesAutoresizingMaskIntoConstraints = false
+        wrapper.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: wrapper.centerXAnchor),
+            label.centerYAnchor.constraint(equalTo: wrapper.centerYAnchor)
+        ])
+        item.view = wrapper
+        item.customizationLabel = "空的自定义配置"
+        item.visibilityPriority = .high
+        return item
+    }
+
+    private func makeLyricsItem() -> NSCustomTouchBarItem {
+        let item = NSCustomTouchBarItem(identifier: Self.lyricsIdentifier)
+        let view = NowPlayingTouchBarView(width: TouchBarLayoutMetrics.lyricsWidth)
+        if let latestNowPlaying {
+            view.update(latestNowPlaying)
+        }
+        nowPlayingViews.append(view)
+        item.view = view
+        item.customizationLabel = "播放信息与歌词"
+        item.visibilityPriority = .high
+        return item
+    }
+
+    private func makeCustomItem(
+        _ configuration: TouchBarItemConfiguration,
+        identifier: NSTouchBarItem.Identifier
+    ) -> NSCustomTouchBarItem? {
+        guard let preset = store.configuration.activePreset else { return nil }
+        let item = NSCustomTouchBarItem(identifier: identifier)
+        if configuration.presentation == .context {
+            let width = contextWidth(for: configuration, preset: preset)
+            let view = ContextTouchBarView(title: configuration.label, width: width)
+            updateContextView(view, key: configuration.contextKey ?? "")
+            view.frame = NSRect(x: 0, y: 0, width: width, height: 30)
+            contextViews[configuration.id] = view
+            contextConfigurations[configuration.id] = configuration
+            item.view = view
+        } else {
+            let width = customButtonWidth(for: configuration)
+            item.view = makeActionButtonView(configuration, preset: preset, width: width)
+        }
+        item.customizationLabel = configuration.label
+        item.visibilityPriority = .high
+        return item
+    }
+
+    private func customButtonWidth(for configuration: TouchBarItemConfiguration) -> CGFloat {
+        switch configuration.width {
+        case .compact:
+            return configuration.symbolName == nil ? 80 : 44
+        case .regular:
+            return configuration.symbolName == nil ? 130 : 80
+        case .wide:
+            return configuration.symbolName == nil ? 220 : 140
+        }
     }
 
     private func makePresetDashboardItem() -> NSCustomTouchBarItem? {
@@ -341,7 +441,11 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             NSImage(systemSymbolName: $0, accessibilityDescription: configuration.label)
         }
         image?.isTemplate = true
-        let iconOnly = preset.kind == .systemFunctions && image != nil
+        let iconOnly = image != nil && (
+            preset.kind == .systemFunctions
+                || preset.kind == .custom
+                || preset.kind == .music
+        )
         let button = NSButton(
             title: iconOnly ? "" : configuration.label,
             image: image ?? NSImage(),
@@ -477,6 +581,44 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             case .compact: return 120
             case .regular: return 160
             case .wide: return 260
+            }
+        }
+        if preset.kind == .custom {
+            let key = configuration.contextKey ?? ""
+            if ["lyric", "nowPlaying"].contains(key) {
+                switch configuration.width {
+                case .compact: return 240
+                case .regular: return 420
+                case .wide: return 640
+                }
+            }
+            if ["latestMessage", "unreadSummary", "messageBadges"].contains(key) {
+                switch configuration.width {
+                case .compact: return 180
+                case .regular: return 300
+                case .wide: return 500
+                }
+            }
+            if Self.metricContextKeys.contains(key) {
+                switch configuration.width {
+                case .compact: return 120
+                case .regular: return 160
+                case .wide: return 260
+                }
+            }
+            if Self.developerContextKeys.contains(key) {
+                switch configuration.width {
+                case .compact: return 120
+                case .regular: return 220
+                case .wide: return 360
+                }
+            }
+            if ["provider", "task", "status", "detail", "duration", "sessions", "event", "tool", "cwd", "message"].contains(key) {
+                switch configuration.width {
+                case .compact: return 120
+                case .regular: return 220
+                case .wide: return 420
+                }
             }
         }
         switch configuration.width {
@@ -765,11 +907,11 @@ private final class ContextTouchBarView: NSView {
         preferredWidth = width
         super.init(frame: NSRect(x: 0, y: 0, width: width, height: 30))
 
-        titleLabel.font = .systemFont(ofSize: 0, weight: .medium)
+        titleLabel.font = .systemFont(ofSize: 10, weight: .semibold)
         titleLabel.textColor = .white
         titleLabel.lineBreakMode = .byTruncatingTail
 
-        valueLabel.font = .monospacedSystemFont(ofSize: 0, weight: .medium)
+        valueLabel.font = .monospacedSystemFont(ofSize: 10, weight: .medium)
         valueLabel.textColor = .white
         valueLabel.lineBreakMode = .byTruncatingMiddle
         valueLabel.maximumNumberOfLines = 1
@@ -789,7 +931,7 @@ private final class ContextTouchBarView: NSView {
         bottom.addSubview(valueLabel)
         bottom.addSubview(sparkline)
         NSLayoutConstraint.activate([
-            bottom.heightAnchor.constraint(equalToConstant: 14),
+            bottom.heightAnchor.constraint(equalToConstant: 12),
             valueLabel.leadingAnchor.constraint(equalTo: bottom.leadingAnchor),
             valueLabel.trailingAnchor.constraint(lessThanOrEqualTo: bottom.trailingAnchor),
             valueLabel.centerYAnchor.constraint(equalTo: bottom.centerYAnchor),
