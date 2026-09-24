@@ -262,7 +262,9 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             item = makeLyricsItem()
         } else if let configuration = customItemConfigurations[identifier.rawValue] {
             item = makeCustomItem(configuration, identifier: identifier)
-        } else if identifier == Self.actionDashboardIdentifier {
+        } else if identifier == Self.actionDashboardIdentifier,
+                  let preset = store.configuration.activePreset,
+                  preset.kind != .custom && preset.kind != .music {
             item = makePresetDashboardItem()
         } else {
             item = nil
