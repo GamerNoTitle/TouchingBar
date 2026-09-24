@@ -73,6 +73,8 @@ struct TouchingBarChecks {
         let file = directory.appendingPathComponent("config.json")
         defer { try? FileManager.default.removeItem(at: directory) }
 
+        try expect(AppConfiguration().effectiveSilentLaunch, "silent launch is enabled by default")
+
         let store = ConfigurationStore(fileURL: file)
         var configuration = AppConfiguration()
         configuration.presets = []

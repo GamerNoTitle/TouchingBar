@@ -50,6 +50,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
     /// is running it always occupies the Touch Bar; quitting releases it.
     public var alwaysOccupyTouchBar: Bool
     public var hideTouchBarCloseButton: Bool
+    public var silentLaunch: Bool?
     public var menuBar: MenuBarSettings
     public var messages: MessageSettings
     public var webDAV: WebDAVSettings
@@ -64,6 +65,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         activePresetID: UUID? = nil,
         alwaysOccupyTouchBar: Bool = true,
         hideTouchBarCloseButton: Bool = true,
+        silentLaunch: Bool = true,
         menuBar: MenuBarSettings = MenuBarSettings(),
         messages: MessageSettings = MessageSettings(),
         webDAV: WebDAVSettings = WebDAVSettings(),
@@ -77,6 +79,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         self.activePresetID = activePresetID
         self.alwaysOccupyTouchBar = alwaysOccupyTouchBar
         self.hideTouchBarCloseButton = hideTouchBarCloseButton
+        self.silentLaunch = silentLaunch
         self.menuBar = menuBar
         self.messages = messages
         self.webDAV = webDAV
@@ -87,6 +90,11 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         if self.activePresetID == nil {
             self.activePresetID = presets.first?.id
         }
+    }
+
+    public var effectiveSilentLaunch: Bool {
+        get { silentLaunch ?? true }
+        set { silentLaunch = newValue }
     }
 
     public var effectiveMetricsHistorySeconds: Int {

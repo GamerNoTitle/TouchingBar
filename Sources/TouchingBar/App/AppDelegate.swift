@@ -36,6 +36,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startHookServer()
         touchBarController.start()
         statusBarController.update()
+        if !store.configuration.effectiveSilentLaunch {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+                self?.showSettings()
+            }
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -49,6 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        guard !store.configuration.effectiveSilentLaunch else { return true }
         showSettings()
         return true
     }

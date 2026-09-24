@@ -67,11 +67,22 @@ struct GeneralSettingsView: View {
         )
     }
 
+    private var silentLaunchBinding: Binding<Bool> {
+        Binding(
+            get: { store.configuration.effectiveSilentLaunch },
+            set: { value in store.updateConfiguration { $0.effectiveSilentLaunch = value } }
+        )
+    }
+
     var body: some View {
         Form {
             Section {
                 Toggle("在菜单栏显示 TouchingBar", isOn: menuBarBinding)
+                Toggle("静默启动", isOn: silentLaunchBinding)
                 Toggle("隐藏 Touch Bar 关闭按钮", isOn: closeBoxBinding)
+                Text("静默启动会在启动或重新打开 TouchingBar 时不自动打开设置窗口，仍可从菜单栏打开。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Text("TouchingBar 运行期间会持续占用 Touch Bar；不使用请从菜单栏退出 TouchingBar。")
                     .font(.callout)
                     .foregroundStyle(.secondary)
