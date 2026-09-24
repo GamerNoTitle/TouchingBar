@@ -123,12 +123,14 @@ struct TouchingBarChecks {
             presentation: .context,
             contextKey: "time",
             dateFormat: "yyyy-MM-dd",
-            timeFormat: "HH:mm"
+            timeFormat: "HH:mm",
+            chartColorHex: "#12AB34"
         )
         let formattedTimeData = try JSONEncoder().encode(formattedTime)
         let decodedFormattedTime = try JSONDecoder().decode(TouchBarItemConfiguration.self, from: formattedTimeData)
         try expect(decodedFormattedTime.dateFormat == "yyyy-MM-dd", "date format round-trips")
         try expect(decodedFormattedTime.timeFormat == "HH:mm", "time format round-trips")
+        try expect(decodedFormattedTime.chartColorHex == "#12AB34", "chart color round-trips")
 
         var retiredConfiguration = AppConfiguration()
         retiredConfiguration.presets.append(

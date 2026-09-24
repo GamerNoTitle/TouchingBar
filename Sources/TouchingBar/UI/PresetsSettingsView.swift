@@ -518,6 +518,9 @@ private struct CustomPresetEditor: View {
     }
 
     private func add(_ item: TouchBarItemConfiguration) {
+        var item = item
+        item.width = .regular
+        item.customWidth = nil
         store.addItem(toPresetID: presetID, item: item)
         selectedItemID = item.id
     }
@@ -1870,6 +1873,9 @@ private struct ContextItemEditor: View {
                     }
                 }
             }
+            if isChartMetric {
+                ChartColorEditor(presetID: presetID, itemID: itemID, item: item)
+            }
             WidthEditor(presetID: presetID, itemID: itemID, item: item)
             if (currentItem?.contextKey ?? item.contextKey) == "lyric" {
                 Toggle("双行歌词", isOn: dualLineLyricsBinding)
@@ -1919,6 +1925,13 @@ private struct ContextItemEditor: View {
 
     private var isTimeRelatedItem: Bool {
         contextKey == "time" || contextKey == "dateTime"
+    }
+
+    private var isChartMetric: Bool {
+        [
+            "cpu", "gpu", "memory", "disk", "cpuTemperature", "fanRPM",
+            "networkDownload", "networkUpload", "battery", "batteryPower", "batteryTime"
+        ].contains(contextKey)
     }
 
     private var dateFormatBinding: Binding<String> {
@@ -2017,6 +2030,106 @@ private struct ContextItemEditor: View {
         )
     }
 
+}
+
+private struct ChartColorEditor: View {
+    @EnvironmentObject private var store: AppStore
+    let presetID: UUID
+    let itemID: UUID
+    let item: TouchBarItemConfiguration
+
+    @State private var hexText = "#000000"
+    @State private var redText = "0"
+    @State private var greenText = "0"
+    @State private var blueText = "0"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                ColorPicker("折线颜色", selection: colorBinding, supportsOpacity: false)
+                TextField("十六进制", text: $hexText)
+                    .frame(width: 100)
+                    .onSubmit { applyHex() }
+                Button("应用") { applyHex() }
+            }
+
+            HStack(spacing: 6) {
+                Text("RGB")
+                TextField("R", text: $redText)
+                    .frame(width: 44)
+                TextField("G", text: $greenText)
+                    .frame(width: 44)
+                TextField("B", text: $blueText)
+                    .frame(width: 44)
+                Button("应用 RGB") { applyRGB() }
+            }
+
+            Text("支持 #RRGGBB、RRGGBB 或 0–255 的 RGB 分量。")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .onAppear(perform: syncFromItem)
+        .onChange(of: currentItem?.chartColorHex) { _ in
+            syncFromItem()
+        }
+    }
+
+    private var currentItem: TouchBarItemConfiguration? {
+        store.configuration.presets
+            .first(where: { $0.id == presetID })?
+            .items.first(where: { $0.id == itemID })
+    }
+
+    private var effectiveColor: NSColor {
+        if let hex = currentItem?.chartColorHex ?? item.chartColorHex,
+           let color = NSColor(hexRGB: hex) {
+            return color
+        }
+        return .controlAccentColor
+    }
+
+    private var colorBinding: Binding<Color> {
+        Binding(
+            get: { Color(nsColor: effectiveColor) },
+            set: { newValue in
+                guard let color = NSColor(newValue).usingColorSpace(.deviceRGB) else { return }
+                updateColor(hex: color.hexRGB)
+            }
+        )
+    }
+
+    private func applyHex() {
+        guard let color = NSColor(hexRGB: hexText) else {
+            syncFromItem()
+            return
+        }
+        updateColor(hex: color.hexRGB)
+    }
+
+    private func applyRGB() {
+        guard let red = Int(redText), let green = Int(greenText), let blue = Int(blueText),
+              (0...255).contains(red), (0...255).contains(green), (0...255).contains(blue) else {
+            syncFromItem()
+            return
+        }
+        let hex = String(format: "#%02X%02X%02X", red, green, blue)
+        updateColor(hex: hex)
+    }
+
+    private func updateColor(hex: String) {
+        guard var updated = currentItem else { return }
+        updated.chartColorHex = hex
+        store.updateItem(presetID: presetID, item: updated)
+        syncFromItem()
+    }
+
+    private func syncFromItem() {
+        let color = effectiveColor.usingColorSpace(.deviceRGB) ?? .controlAccentColor
+        hexText = color.hexRGB
+        redText = String(Int((color.redComponent * 255).rounded()))
+        greenText = String(Int((color.greenComponent * 255).rounded()))
+        blueText = String(Int((color.blueComponent * 255).rounded()))
+    }
 }
 
 private struct MessagesPresetDetail: View {

@@ -52,6 +52,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
     public var contextKey: String?
     public var dateFormat: String?
     public var timeFormat: String?
+    public var chartColorHex: String?
 
     public init(
         id: UUID = UUID(),
@@ -70,7 +71,8 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         action: ActionSpec = .none,
         contextKey: String? = nil,
         dateFormat: String? = nil,
-        timeFormat: String? = nil
+        timeFormat: String? = nil,
+        chartColorHex: String? = nil
     ) {
         self.id = id
         self.label = label
@@ -89,6 +91,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         self.contextKey = contextKey
         self.dateFormat = dateFormat
         self.timeFormat = timeFormat
+        self.chartColorHex = chartColorHex
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -109,6 +112,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         case contextKey
         case dateFormat
         case timeFormat
+        case chartColorHex
     }
 
     public init(from decoder: Decoder) throws {
@@ -130,6 +134,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         contextKey = try container.decodeIfPresent(String.self, forKey: .contextKey)
         dateFormat = try container.decodeIfPresent(String.self, forKey: .dateFormat)
         timeFormat = try container.decodeIfPresent(String.self, forKey: .timeFormat)
+        chartColorHex = try container.decodeIfPresent(String.self, forKey: .chartColorHex)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -151,6 +156,7 @@ public struct TouchBarItemConfiguration: Codable, Identifiable, Equatable, Senda
         try container.encodeIfPresent(contextKey, forKey: .contextKey)
         try container.encodeIfPresent(dateFormat, forKey: .dateFormat)
         try container.encodeIfPresent(timeFormat, forKey: .timeFormat)
+        try container.encodeIfPresent(chartColorHex, forKey: .chartColorHex)
     }
 }
 

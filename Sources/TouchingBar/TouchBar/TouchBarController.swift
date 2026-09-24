@@ -723,12 +723,17 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             value: contextValue(for: key, configuration: configuration) ?? "—",
             history: history,
             range: store.systemMetrics.chartRange(for: key, history: history ?? []),
-            color: chartColor(for: key),
+            color: chartColor(for: configuration),
             lyricProgress: key == "lyric" ? latestNowPlaying?.currentLyricProgress : nil
         )
     }
 
-    private func chartColor(for key: String) -> NSColor {
+    private func chartColor(for configuration: TouchBarItemConfiguration) -> NSColor {
+        let key = configuration.contextKey ?? ""
+        if let hex = configuration.chartColorHex,
+           let color = NSColor(hexRGB: hex) {
+            return color
+        }
         switch key {
         case "cpu": return .systemGreen
         case "gpu": return .systemPurple
@@ -825,6 +830,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 item.contextKey ?? "",
                 item.dateFormat ?? "",
                 item.timeFormat ?? "",
+                item.chartColorHex ?? "",
                 item.action.kind.rawValue,
                 item.action.value ?? "",
                 item.action.media?.rawValue ?? "",
