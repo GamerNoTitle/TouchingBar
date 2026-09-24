@@ -209,7 +209,7 @@ CONFIGURATION=release ARCHS="x86_64 arm64" bash Scripts/build-app.sh
 bash Scripts/build-dmg.sh
 ```
 
-DMG 中包含 `TouchingBar.app` 和指向 `/Applications` 的快捷方式，并会执行 `hdiutil verify` 校验。
+DMG 中包含拖拽安装背景、`TouchingBar.app` 和指向 `/Applications` 的快捷方式，并会执行 `hdiutil verify` 校验。
 
 产物：
 
