@@ -35,11 +35,13 @@ shadow.shadowColor = NSColor.black.withAlphaComponent(0.38)
 shadow.shadowBlurRadius = 34
 shadow.shadowOffset = NSSize(width: 0, height: -12)
 shadow.set()
-let backgroundGradient = NSGradient(colors: [
-    NSColor(calibratedRed: 0.16, green: 0.32, blue: 0.72, alpha: 1),
-    NSColor(calibratedRed: 0.055, green: 0.09, blue: 0.22, alpha: 1)
-])
-backgroundGradient?.draw(in: background, angle: -90)
+NSColor(
+    srgbRed: 0,
+    green: 123.0 / 255.0,
+    blue: 1,
+    alpha: 1
+).setFill()
+background.fill()
 NSShadow().set()
 
 let border = NSBezierPath(
@@ -50,19 +52,6 @@ let border = NSBezierPath(
 NSColor.white.withAlphaComponent(0.20).setStroke()
 border.lineWidth = 3
 border.stroke()
-
-let topGlossRect = NSRect(
-    x: backgroundRect.minX + 2,
-    y: backgroundRect.midY + 40,
-    width: backgroundRect.width - 4,
-    height: backgroundRect.height / 2 - 40
-)
-let topGloss = NSBezierPath(roundedRect: topGlossRect, xRadius: 200, yRadius: 200)
-let glossGradient = NSGradient(colors: [
-    NSColor.white.withAlphaComponent(0.18),
-    NSColor.white.withAlphaComponent(0.0)
-])
-glossGradient?.draw(in: topGloss, angle: -90)
 
 let pointSize = canvas.width * 0.46
 let baseConfiguration = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .semibold)
@@ -103,6 +92,10 @@ try png.write(to: URL(fileURLWithPath: CommandLine.arguments[1]), options: .atom
 SWIFT
 
 swift "$TMP_DIR/render-icon.swift" "$TMP_DIR/icon_1024.png" >/dev/null
+SRGB_PROFILE="/System/Library/ColorSync/Profiles/sRGB Profile.icc"
+if [ -f "$SRGB_PROFILE" ]; then
+    sips -m "$SRGB_PROFILE" "$TMP_DIR/icon_1024.png" >/dev/null
+fi
 ICONSET="$TMP_DIR/AppIcon.iconset"
 mkdir -p "$ICONSET"
 sips -z 16 16 "$TMP_DIR/icon_1024.png" --out "$ICONSET/icon_16x16.png" >/dev/null
