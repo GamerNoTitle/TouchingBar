@@ -3,6 +3,7 @@ import Foundation
 public enum WebDAVError: Error, LocalizedError {
     case invalidServerURL
     case invalidResponse
+    case authenticationFailed
     case httpStatus(Int, String?)
 
     public var errorDescription: String? {
@@ -11,6 +12,8 @@ public enum WebDAVError: Error, LocalizedError {
             return "WebDAV 服务器地址无效。"
         case .invalidResponse:
             return "WebDAV 服务器返回了无效响应。"
+        case .authenticationFailed:
+            return "WebDAV 认证失败，请检查用户名和密码。"
         case .httpStatus(let code, let message):
             return "WebDAV 请求失败（HTTP \(code)）\(message.map { "：\($0)" } ?? "")"
         }
@@ -67,6 +70,9 @@ public struct WebDAVClient: Sendable {
             throw WebDAVError.invalidResponse
         }
         guard (200..<300).contains(response.statusCode) else {
+            if response.statusCode == 401 || response.statusCode == 403 {
+                throw WebDAVError.authenticationFailed
+            }
             let message = String(data: data, encoding: .utf8)
             throw WebDAVError.httpStatus(response.statusCode, message)
         }
