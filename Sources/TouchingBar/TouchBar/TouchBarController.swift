@@ -825,9 +825,127 @@ private final class ContextTouchBarScrollView: NSScrollView {
     }
 }
 
+private final class MarqueeTextField: NSView {
+    var font: NSFont = .systemFont(ofSize: 10) {
+        didSet { invalidateIntrinsicContentSize(); needsDisplay = true }
+    }
+    var textColor: NSColor = .labelColor {
+        didSet { needsDisplay = true }
+    }
+
+    private var text = ""
+    private var offset: CGFloat = 0
+    private var direction: CGFloat = -1
+    private var timer: Timer?
+    private var pauseUntil = Date.distantPast
+
+    override var isFlipped: Bool { false }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: NSView.noIntrinsicMetric, height: ceil(font.ascender - font.descender + 2))
+    }
+
+    func updateText(_ newText: String) {
+        guard newText != text else { return }
+        text = newText
+        toolTip = newText.isEmpty ? nil : newText
+        resetAnimation()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            stopAnimation()
+        } else {
+            startAnimationIfNeeded()
+        }
+    }
+
+    override func layout() {
+        super.layout()
+        startAnimationIfNeeded()
+        needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard !text.isEmpty, bounds.width > 0, bounds.height > 0 else { return }
+
+        let style = NSMutableParagraphStyle()
+        style.lineBreakMode = .byClipping
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: textColor,
+            .paragraphStyle: style
+        ]
+        let size = (text as NSString).size(withAttributes: attributes)
+        let y = (bounds.height - size.height) / 2
+        (text as NSString).draw(at: NSPoint(x: offset, y: y), withAttributes: attributes)
+    }
+
+    deinit {
+        timer?.invalidate()
+    }
+
+    private func resetAnimation() {
+        offset = 0
+        direction = -1
+        pauseUntil = Date().addingTimeInterval(0.6)
+        needsDisplay = true
+        startAnimationIfNeeded()
+    }
+
+    private func startAnimationIfNeeded() {
+        guard window != nil, bounds.width > 1, textWidth > bounds.width + 1 else {
+            stopAnimation()
+            return
+        }
+        guard timer == nil else { return }
+
+        let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
+            self?.tick()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+
+    private func stopAnimation() {
+        timer?.invalidate()
+        timer = nil
+        offset = 0
+        needsDisplay = true
+    }
+
+    private func tick() {
+        let overflow = textWidth - bounds.width
+        guard overflow > 1 else {
+            stopAnimation()
+            return
+        }
+        guard Date() >= pauseUntil else { return }
+
+        offset += direction * 24.0 / 30.0
+        if offset <= -overflow {
+            offset = -overflow
+            direction = 1
+            pauseUntil = Date().addingTimeInterval(0.8)
+        } else if offset >= 0 {
+            offset = 0
+            direction = -1
+            pauseUntil = Date().addingTimeInterval(0.8)
+        }
+        needsDisplay = true
+    }
+
+    private var textWidth: CGFloat {
+        guard !text.isEmpty else { return 0 }
+        return ceil((text as NSString).size(withAttributes: [.font: font]).width)
+    }
+}
+
 private final class ContextTouchBarView: NSView {
     private let titleLabel: NSTextField
-    private let valueLabel = NSTextField(labelWithString: "—")
+    private let valueLabel = MarqueeTextField()
     private let sparkline = SparklineView()
     private let preferredWidth: CGFloat
     private let baseTitle: String
@@ -845,8 +963,6 @@ private final class ContextTouchBarView: NSView {
 
         valueLabel.font = .monospacedSystemFont(ofSize: 10, weight: .medium)
         valueLabel.textColor = .white
-        valueLabel.lineBreakMode = .byTruncatingMiddle
-        valueLabel.maximumNumberOfLines = 1
 
         sparkline.isHidden = true
 
@@ -865,7 +981,7 @@ private final class ContextTouchBarView: NSView {
         NSLayoutConstraint.activate([
             bottom.heightAnchor.constraint(equalToConstant: 12),
             valueLabel.leadingAnchor.constraint(equalTo: bottom.leadingAnchor),
-            valueLabel.trailingAnchor.constraint(lessThanOrEqualTo: bottom.trailingAnchor),
+            valueLabel.trailingAnchor.constraint(equalTo: bottom.trailingAnchor),
             valueLabel.centerYAnchor.constraint(equalTo: bottom.centerYAnchor),
             sparkline.leadingAnchor.constraint(equalTo: bottom.leadingAnchor),
             sparkline.trailingAnchor.constraint(equalTo: bottom.trailingAnchor),
@@ -908,7 +1024,7 @@ private final class ContextTouchBarView: NSView {
             sparkline.update(values: history, range: range, color: color)
         } else {
             titleLabel.stringValue = baseTitle.uppercased()
-            valueLabel.stringValue = value
+            valueLabel.updateText(value)
             valueLabel.isHidden = false
             sparkline.isHidden = true
         }
@@ -1073,33 +1189,32 @@ private final class SparklineView: NSView {
 }
 
 private final class NowPlayingTouchBarView: NSView {
-    private let titleLabel = NSTextField(labelWithString: "未在播放")
-    private let lyricsLabel = NSTextField(labelWithString: "")
+    private let titleLabel = MarqueeTextField()
+    private let lyricsLabel = MarqueeTextField()
     private let preferredWidth: CGFloat
 
     init(width: CGFloat) {
         preferredWidth = width
         super.init(frame: NSRect(x: 0, y: 0, width: width, height: 30))
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 1
 
-        titleLabel.font = .systemFont(ofSize: 0, weight: .semibold)
+        titleLabel.font = .systemFont(ofSize: 10, weight: .semibold)
         titleLabel.textColor = .labelColor
-        titleLabel.lineBreakMode = .byTruncatingTail
-        lyricsLabel.font = .systemFont(ofSize: 0)
+        lyricsLabel.font = .systemFont(ofSize: 10)
         lyricsLabel.textColor = .secondaryLabelColor
-        lyricsLabel.lineBreakMode = .byTruncatingTail
 
-        stack.addArrangedSubview(titleLabel)
-        stack.addArrangedSubview(lyricsLabel)
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(stack)
+        [titleLabel, lyricsLabel].forEach {
+            $0.translatesAutoresizingMaskIntoConstraints = false
+            addSubview($0)
+        }
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
-            stack.centerYAnchor.constraint(equalTo: centerYAnchor)
+            titleLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
+            titleLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
+            titleLabel.topAnchor.constraint(equalTo: topAnchor, constant: 1),
+            titleLabel.heightAnchor.constraint(equalToConstant: 14),
+            lyricsLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
+            lyricsLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
+            lyricsLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 1),
+            lyricsLabel.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -1)
         ])
     }
 
@@ -1112,14 +1227,14 @@ private final class NowPlayingTouchBarView: NSView {
     }
 
     func update(_ snapshot: NowPlayingSnapshot) {
-        titleLabel.stringValue = snapshot.compactTitle
-        lyricsLabel.stringValue = snapshot.currentLyricLine ?? snapshot.album
+        titleLabel.updateText(snapshot.compactTitle)
+        lyricsLabel.updateText(snapshot.currentLyricLine ?? snapshot.album)
     }
 }
 
 private final class MessagesTouchBarView: NSView {
     private let stack = NSStackView()
-    private let latestLabel = NSTextField(labelWithString: "暂无未读消息")
+    private let latestLabel = MarqueeTextField()
     private let preferredWidth: CGFloat
 
     init(width: CGFloat) {
@@ -1129,9 +1244,8 @@ private final class MessagesTouchBarView: NSView {
         stack.spacing = 7
         stack.alignment = .centerY
 
-        latestLabel.font = .systemFont(ofSize: 0, weight: .medium)
+        latestLabel.font = .systemFont(ofSize: 10, weight: .medium)
         latestLabel.textColor = .labelColor
-        latestLabel.lineBreakMode = .byTruncatingTail
 
         let outer = NSStackView(views: [stack, latestLabel])
         outer.orientation = .horizontal
@@ -1143,7 +1257,7 @@ private final class MessagesTouchBarView: NSView {
             outer.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
             outer.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
             outer.centerYAnchor.constraint(equalTo: centerYAnchor),
-            latestLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 300)
+            latestLabel.widthAnchor.constraint(equalToConstant: 300)
         ])
     }
 
@@ -1163,10 +1277,10 @@ private final class MessagesTouchBarView: NSView {
         for badge in badges.prefix(8) {
             stack.addArrangedSubview(makeBadgeView(badge))
         }
-        latestLabel.stringValue = latestMessage.map {
+        latestLabel.updateText(latestMessage.map {
             let sender = $0.sender.map { "\($0): " } ?? ""
             return "\($0.application) · \(sender)\($0.body)"
-        } ?? "暂无未读消息"
+        } ?? "暂无未读消息")
     }
 
     private func makeBadgeView(_ badge: ApplicationUnreadCount) -> NSView {
