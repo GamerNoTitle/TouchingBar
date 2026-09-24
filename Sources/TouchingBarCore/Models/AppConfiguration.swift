@@ -57,7 +57,6 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
     public var webDAV: WebDAVSettings
     public var lyricsOffset: Double?
     public var metricsHistorySeconds: Int?
-    public var batteryComponentsMigrated: Bool?
     public var showAgentNotifications: Bool?
     public var presets: [TouchBarPreset]
 
@@ -74,7 +73,6 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         webDAV: WebDAVSettings = WebDAVSettings(),
         lyricsOffset: Double = 0,
         metricsHistorySeconds: Int = 30,
-        batteryComponentsMigrated: Bool? = nil,
         showAgentNotifications: Bool = true,
         presets: [TouchBarPreset] = BuiltInPresets.make()
     ) {
@@ -90,7 +88,6 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         self.webDAV = webDAV
         self.lyricsOffset = lyricsOffset
         self.metricsHistorySeconds = metricsHistorySeconds
-        self.batteryComponentsMigrated = batteryComponentsMigrated
         self.showAgentNotifications = showAgentNotifications
         self.presets = presets
         if self.activePresetID == nil {
@@ -137,7 +134,6 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
             presets = BuiltInPresets.make()
         }
         removeRetiredPresets()
-        migrateBatteryComponents()
         migrateDeveloperPresetToolchains()
         migrateSystemFunctionPreset()
         migrateCustomPresetContent()
@@ -155,20 +151,6 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
             presets.append(builtIn)
         }
         normalize()
-    }
-
-    private mutating func migrateBatteryComponents() {
-        guard batteryComponentsMigrated != true else { return }
-        batteryComponentsMigrated = true
-        guard let presetIndex = presets.firstIndex(where: { $0.kind == .metrics }) else { return }
-        let existingKeys = Set(presets[presetIndex].items.compactMap(\.contextKey))
-        let batteryItems = BuiltInPresets.metrics().items.filter {
-            guard let key = $0.contextKey else { return false }
-            return ["battery", "batteryPower", "batteryTime"].contains(key)
-        }
-        for item in batteryItems where !existingKeys.contains(item.contextKey ?? "") {
-            presets[presetIndex].items.append(item)
-        }
     }
 
     private mutating func removeRetiredPresets() {

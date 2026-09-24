@@ -61,9 +61,8 @@ struct TouchingBarChecks {
         try expect(systemItems.allSatisfy { $0.width == .regular }, "Mac function key widths match the current user preset")
 
         let metrics = BuiltInPresets.metrics()
-        try expect(metrics.items.first?.contextKey == "dateTime" && metrics.items.first?.customWidth == 130, "metrics default includes the current user date time component")
-        try expect(metrics.items.first { $0.contextKey == "disk" }?.isHidden == true, "metrics default preserves the hidden disk component")
-        try expect(["battery", "batteryPower", "batteryTime"].allSatisfy { key in metrics.items.contains { $0.contextKey == key } }, "metrics default includes battery components")
+        try expect(metrics.items.map { $0.contextKey } == ["dateTime", "cpu", "gpu", "memory", "cpuTemperature", "fanRPM", "networkDownload", "networkUpload"], "metrics default matches the current user preset")
+        try expect(metrics.items.first?.customWidth == 130, "metrics default preserves the current time width")
     }
 
     private static func checkBackupRoundTrip() throws {
@@ -333,7 +332,7 @@ struct TouchingBarChecks {
         try expect(configuration.presets.contains { $0.kind == .metrics }, "missing built-in presets can be restored")
         let metrics = configuration.presets.first { $0.kind == .metrics }
         let keys = Set(metrics?.items.compactMap(\.contextKey) ?? [])
-        try expect(keys.isSuperset(of: ["dateTime", "battery", "batteryPower", "batteryTime", "cpu", "gpu", "memory", "disk", "cpuTemperature", "fanRPM", "networkDownload", "networkUpload"]), "metrics preset contains the current default components")
+        try expect(keys == Set(["dateTime", "cpu", "gpu", "memory", "cpuTemperature", "fanRPM", "networkDownload", "networkUpload"]), "metrics preset contains exactly the current default components")
     }
 
     private static func checkMetricsHistoryRange() throws {

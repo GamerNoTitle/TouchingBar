@@ -124,13 +124,9 @@ public enum BuiltInPresets {
             content: .components,
             items: [
                 .init(label: "当前时间", width: .custom, customWidth: 130, presentation: .context, contextKey: "dateTime"),
-                .init(label: "电池", width: .regular, presentation: .context, contextKey: "battery"),
-                .init(label: "功率", width: .regular, presentation: .context, contextKey: "batteryPower"),
-                .init(label: "电池时间", width: .regular, presentation: .context, contextKey: "batteryTime"),
                 .init(label: "CPU", width: .regular, presentation: .context, contextKey: "cpu"),
                 .init(label: "GPU", width: .regular, presentation: .context, contextKey: "gpu"),
                 .init(label: "内存", width: .regular, presentation: .context, contextKey: "memory"),
-                .init(label: "硬盘", width: .regular, isHidden: true, presentation: .context, contextKey: "disk"),
                 .init(label: "温度", width: .regular, presentation: .context, contextKey: "cpuTemperature"),
                 .init(label: "风扇", width: .regular, presentation: .context, contextKey: "fanRPM"),
                 .init(label: "下载", width: .regular, presentation: .context, contextKey: "networkDownload"),
