@@ -1,36 +1,186 @@
 # TouchingBar
 
-TouchingBar 是一个原生 macOS Touch Bar 信息与轻交互工具。目标不是复制完整的 BetterTouchTool，而是把 Touch Bar 当成 MacBook 上的“灵动岛”：持续展示当前有价值的信息，并保留少量快捷操作。
+TouchingBar 是一个原生 macOS Touch Bar 信息与轻交互工具。它把 Touch Bar 当作 MacBook 上的“灵动岛”：持续显示当前有价值的信息，同时保留少量快捷操作。
 
-项目使用 Swift、AppKit 与 SwiftUI，不包含 WebView、Electron 或网页渲染层。
+项目使用 Swift、AppKit、SwiftUI 和少量隔离的私有系统接口，不包含 WebView、Electron 或网页渲染层。
 
-## 已实现能力
+## 当前能力
 
-- **全局占用 Touch Bar**：通过隔离的 `DFRFoundation` 系统模态接口，让 TouchingBar 不随前台应用切换，并隐藏系统关闭按钮。
-- **多配置切换**：Touch Bar 最右侧固定显示 `‹ 配置名称 ›`，可以快速切换配置。
-- **F1–F12 配置**：始终显示完整的 12 个功能键，并通过 `CGEvent` 发送标准 F1–F12 键码。
-- **Mac 功能键配置**：默认按照屏幕亮度、调度中心、快速锁屏、键盘背光、媒体和音量排列，所有按钮均可在设置中替换。
-- **开发者上下文配置**：在 Terminal、iTerm2、VS Code、JetBrains IDE、Warp、WezTerm、kitty、Alacritty 等前台时，尝试获取当前 shell 的目录，并展示 Git 分支、改动数量、Python 虚拟环境与版本、Node 包管理器及版本信息。
-- **zsh 终端集成**：可显式安装带标记的 shell hook，在目录变化时上报真实 `$PWD`、虚拟环境和 Node 版本，并支持一键卸载。
-- **Agent Hook 配置**：本地监听 `127.0.0.1:19427`，按 session 维护多个 Agent 会话，展示状态、任务、事件、工具和工作目录，并支持等待/完成/失败通知。
-- **歌词全局偏移**：可在设置中统一调整歌词提前或延后时间，偏移对所有歌曲生效；Touch Bar 以 0.5 秒周期刷新当前歌词。
-- **未播放时隐藏**：音乐与歌词预设可以整体设置，自定义配置中的正在播放、歌词和媒体按钮也可以分别设置；没有歌曲信息时自动隐藏，检测到歌曲后自动恢复。
-- **系统资源预设**：展示 CPU、GPU、内存、硬盘、CPU 温度、风扇转速及上传/下载速度，并以 10 秒至 10 分钟可调的滚动折线图显示趋势。
-- **自由组件**：自定义预设可以在同一 Touch Bar 中混合动作按钮、系统资源、开发者信息、Agent 会话、消息、音乐歌词和宠物。
-- **Codex 宠物**：可以直接输入 GitHub 仓库地址执行 `git clone --depth 1` 安装，也可以从 `~/.codex/pets` 扫描，或选择任意包含 `pet.json` 的宠物目录；兼容官方 `8×9` 与带方向帧的 `8×11` 精灵图；可选择 `animation-triggers.json` 中的动作状态或 pet 包内的 GIF/PNG/WebP 图片，动画会在 Touch Bar 上持续循环播放。
-- **消息配置**：从 Dock 角标读取微信、QQ、Telegram、企业微信、飞书和 Lark 的未读数；在获得辅助功能权限后，尝试读取系统通知横幅的发送者与正文，并支持自定义消息 Hook。Touch Bar 通知可以关闭。
-- **菜单栏模式**：菜单栏图标可以显示或隐藏，并提供配置切换、重新显示 Touch Bar和退出等功能。
-- **备份与恢复**：支持 JSON 文件导入导出，以及通过 WebDAV `PUT/GET` 上传和恢复配置。
-- **Intel 与 Apple Silicon**：构建脚本与 GitHub Actions 会分别构建 `x86_64` 与 `arm64`，发布时使用 `lipo` 合成为通用二进制。
+### Touch Bar 与配置
+
+- 通过隔离的 `DFRFoundation` 系统模态接口持续占用 Touch Bar，并尽量不随前台应用切换。
+- 可以在设置中隐藏系统关闭按钮、关闭动态效果、设置静默启动和菜单栏图标。
+- 支持菜单栏切换配置，也支持在 Touch Bar 内容区域上下滑动切换相邻配置。
+- 设置窗口采用显式保存流程：发生修改后右下角显示「撤销 / 保存」，也可以按 `⌘S`。
+- 支持 F1–F12、Mac 功能键、开发者、Agent、未读消息、音乐与歌词、系统资源和自由组件等配置。
+
+### 内置配置
+
+| 配置 | 主要功能 |
+| --- | --- |
+| F1–F12 | 完整 12 个功能键，通过 `CGEvent` 发送标准 F1–F12 键码 |
+| Mac 功能键 | 屏幕亮度、调度中心、快速锁屏、键盘背光、媒体控制、音量和静音 |
+| 开发者 | 路径、Git 分支、改动数量、Python、Node、Java、Go、Rust、Swift、Docker、Kubernetes、Terraform、CMake、Xcode 等上下文 |
+| Agent | 多 Agent 会话、状态、任务、事件、工具、工作目录和耗时 |
+| 未读消息 | 从 Dock 角标读取微信、QQ、Telegram、企业微信、飞书、Lark 等未读数，并显示最新消息 |
+| 音乐与歌词 | 媒体控制、当前曲目、歌词、双行歌词和未播放时自动隐藏 |
+| 系统资源 | CPU、GPU、内存、硬盘、CPU 温度、风扇、上传和下载速度 |
+
+### 自由组件
+
+自定义配置可以在同一个 Touch Bar 中混合以下组件：
+
+- 媒体控件：上一曲、播放/暂停、下一曲
+- 正在播放、歌词、未读汇总、最新消息
+- 日期、时间、日期 + 时间
+- 系统资源：CPU、GPU、内存、硬盘、CPU 温度、风扇、上传、下载
+- 开发者上下文与 Agent 上下文
+- 系统功能：调度中心、快速锁屏、亮度、键盘背光、音量和静音
+- 自定义按钮：键盘快捷键、启动应用、打开 URL、运行 Shell 命令
+- Codex 宠物
+
+组件支持：
+
+- 紧凑、常规、宽和自定义宽度；自定义宽度范围为 `40...1200 pt`
+- 显示标签或隐藏标签
+- 隐藏组件
+- 拖动排序和上移/下移
+- 音乐相关组件可以开启「未播放时隐藏」
+- 隐藏组件后会从布局宽度中彻底移除，后面的组件会自动前移
+
+### 音乐与歌词
+
+- 通过系统 Now Playing 读取当前播放信息。
+- 网易云音乐支持歌词和翻译，并可获取网易云歌词接口返回的双语歌词。
+- Apple Music 可以读取系统歌词；Spotify 目前支持播放状态，但不提供歌词 Provider。
+- 支持歌词全局偏移，范围为 `-5...+5` 秒，对所有歌曲生效。
+- 双行歌词支持两种下行内容：
+  - 有翻译时显示翻译
+  - 没有翻译时显示下一句
+- 歌词切换动画：下一句上移、放大并过渡为第一行，当前句向上缩小、变灰并退出。
+- 设置中的「关闭动态效果」会让宠物、GIF 和双行歌词使用静态切换。
+- 「未播放时隐藏」可以让整个音乐预设或单个音乐组件自动隐藏，检测到歌曲后自动恢复。
+
+### Codex 宠物
+
+TouchingBar 支持安装并显示 Codex pet。
+
+标准 pet 目录通常包含：
+
+```text
+pet.json
+spritesheet.webp
+animation-triggers.json   # 可选
+```
+
+格式支持：
+
+- 官方 `1536×1872` 精灵图：`8×9` 网格
+- 带方向帧的 v2 精灵图：`1536×2288`，`8×11` 网格
+- 每格 `192×208`
+- `animation-triggers.json` 中的动作状态
+- pet 包中的 GIF、PNG、JPEG、WebP、HEIC 等图片资源
+
+安装方式：
+
+- 从 GitHub 安装，支持 HTTPS、SSH 和 `tree/<branch>/<子目录>` 地址
+- 从本地目录安装
+- 扫描 `~/.codex/pets`
+- GitHub 安装内部使用 `git clone --depth 1`
+
+安装后的宠物复制到：
+
+```text
+~/Library/Application Support/TouchingBar/Pets/<pet-id>/
+```
+
+宠物组件支持选择动作或图片。GIF 和精灵图都会自动循环播放，不会因为原始 GIF 只循环一次而停止。TouchingBar 不内置第三方宠物素材；素材授权仍由原仓库决定。
+
+### 系统资源
+
+- CPU、GPU、内存、硬盘占用率
+- CPU 温度和风扇转速
+- 上传、下载速度
+- 以每秒采样的滚动折线图展示趋势
+- 趋势窗口支持 10 秒、30 秒、1 分钟、2 分钟、5 分钟、10 分钟
+- 按当前视口自动缩放；CPU、GPU、内存、硬盘使用 0–100% 范围，温度和网速按当前区间自适应
+
+### Hook 与自动化
+
+应用内置仅监听回环地址的 Hook 服务：
+
+```text
+127.0.0.1:19427
+```
+
+支持端点：
+
+```text
+POST /v1/context/developer
+POST /v1/context/agent
+POST /v1/messages
+```
+
+随应用打包的 `TouchingBarCtl` 可以用于终端、脚本和 Agent：
+
+```bash
+TouchingBarCtl health
+
+TouchingBarCtl agent   --provider codex   --status running   --task "Implement Touch Bar preset"
+
+TouchingBarCtl developer   --directory "$PWD"   --terminal "VS Code"
+
+TouchingBarCtl install-shell-hook
+TouchingBarCtl shell-hook-status
+TouchingBarCtl uninstall-shell-hook
+
+TouchingBarCtl message   --app WeChat   --sender Alice   --body "Hello from a hook"
+```
+
+也支持直接把原始 Agent JSON 从标准输入传入：
+
+```bash
+TouchingBarCtl agent-event --provider claude-code < raw-hook.json
+```
+
+归一化器支持常见的 `hook_event_name`、`type`、`status`、`session_id`、`prompt`、`task`、`tool_name` 等字段，并把 `PreToolUse`、`UserPromptSubmit` 等事件映射为 `running`，把 `Stop` 映射为 `completed`。
+
+### Agent Hook 安装器
+
+设置中的「集成」页面可以为常见 Agent 安装 Hook：
+
+- Claude Code
+- Codex
+- Gemini
+- Cursor
+
+安装器会合并现有配置，只添加或移除 TouchingBar 管理的 Hook，不覆盖其他 Hook。
+
+### 消息
+
+- 通过 Dock 角标读取常见 IM 的未读数。
+- 在获得辅助功能权限后，尝试读取系统通知横幅的发送者与正文。
+- 支持自定义消息 Hook。
+- Touch Bar 通知横幅可以单独关闭，但最新消息仍会显示在 Touch Bar 中。
+
+### 备份与恢复
+
+- 导出/导入 JSON 配置文件。
+- 使用 WebDAV `PUT` 上传备份。
+- 使用 WebDAV `GET` 下载并恢复配置。
+- 兼容自建 NAS 的普通 HTTP WebDAV，但生产环境建议使用 HTTPS。
+- WebDAV 密码保存在 macOS 钥匙串，不写入配置文件或备份文件。
 
 ## 系统要求
 
 - macOS 13 或更高版本
-- 带 Touch Bar 的 MacBook；没有 Touch Bar 的 Mac 仍可编译和运行设置界面，但不能显示 Touch Bar UI
+- 带 Touch Bar 的 MacBook
+- 没有 Touch Bar 的 Mac 仍可编译并运行设置界面，但不能显示 Touch Bar UI
 - 使用全局占用、Dock 角标读取和键盘事件模拟时，需要授予“辅助功能”权限
-- 音乐控制需要授予自动化权限
+- 媒体控制和部分系统动作可能需要自动化权限
+- GitHub 宠物安装需要可用的 `git` 命令；SSH 地址需要本机已配置 GitHub SSH Key
 
-全局模式使用 macOS 私有系统模态接口。该接口长期存在于 `DFRFoundation`，LyricsX、BetterTouchTool 等应用也采用类似机制，但它不属于公开 API，macOS 大版本升级后可能需要适配。
+全局模式使用 macOS 私有系统模态接口。该接口长期存在于 `DFRFoundation`，但不属于公开 API，macOS 大版本升级后可能需要适配。
 
 ## 本地构建
 
@@ -39,132 +189,68 @@ TouchingBar 是一个原生 macOS Touch Bar 信息与轻交互工具。目标不
 ```bash
 swift build
 swift run TouchingBarChecks
-bash Scripts/build-app.sh
-open dist/TouchingBar.app
 ```
 
-默认只构建当前机器架构。构建通用版本：
+构建当前机器架构的 App：
 
 ```bash
-ARCHS="x86_64 arm64" bash Scripts/build-app.sh
+CONFIGURATION=release bash Scripts/build-app.sh
 ```
 
-产物位于：
+构建 Intel 与 Apple Silicon 通用版本：
+
+```bash
+CONFIGURATION=release ARCHS="x86_64 arm64" bash Scripts/build-app.sh
+```
+
+产物：
 
 ```text
 dist/TouchingBar.app
 dist/TouchingBar.zip
 ```
 
-开发时可以运行：
+开发运行：
 
 ```bash
 bash Scripts/run-dev.sh
 ```
 
-## 配置与数据
-
-配置文件和运行时上下文默认保存在：
+## 配置与数据目录
 
 ```text
 ~/Library/Application Support/TouchingBar/config.json
 ~/Library/Application Support/TouchingBar/runtime-context.json
 ~/Library/Application Support/TouchingBar/Pets/
+~/Library/Application Support/TouchingBar/shell-integration.zsh
 ```
 
-配置模型支持版本号。恢复时会检查 schema/备份格式，并将旧配置规范化到当前版本。
-
-## Hook 接入
-
-应用内会启动仅监听回环地址的 Hook 服务。也可以使用随应用打包的 `TouchingBarCtl`：
-
-```bash
-TouchingBarCtl health
-
-TouchingBarCtl agent \
-  --provider codex \
-  --status running \
-  --task "Implement Touch Bar preset"
-
-TouchingBarCtl developer \
-  --directory "$PWD" \
-  --terminal "VS Code"
-
-TouchingBarCtl install-shell-hook
-TouchingBarCtl shell-hook-status
-TouchingBarCtl uninstall-shell-hook
-
-TouchingBarCtl message \
-  --app WeChat \
-  --sender Alice \
-  --body "Hello from a hook"
-```
-
-如果厂商提供的是原始事件 JSON，可以直接把原始 payload 从标准输入交给归一化端点：
-
-```bash
-TouchingBarCtl agent-event --provider claude-code < raw-hook.json
-```
-
-归一化器支持常见的 `hook_event_name/type/status`、`session_id`、`prompt/task`、`tool_name` 字段，并把 `PreToolUse`、`UserPromptSubmit` 等事件映射为 `running`，`Stop` 映射为 `completed`。未知字段不会阻止上报。
-
-直接发送 TouchingBar 自己的 JSON：
-
-```bash
-curl -X POST http://127.0.0.1:19427/v1/context/agent \
-  -H 'Content-Type: application/json' \
-  -d '{"provider":"claude-code","status":"running","task":"Run tests","updatedAt":"2026-09-23T06:00:00Z"}'
-```
-
-开发者上下文只会覆盖 Hook 上报的字段；对于本地项目，`TouchingBarCtl developer` 会先补齐 Git、Python 和 Node 信息。也可以在“设置 > 集成”安装 zsh 集成，让 shell 在目录变化时直接上报真实的 `$PWD`、虚拟环境和 Node 版本：
-
-```bash
-curl -X POST http://127.0.0.1:19427/v1/context/developer \
-  -H 'Content-Type: application/json' \
-  -d '{"workingDirectory":"/Users/me/project","terminalName":"JetBrains","updatedAt":"2026-09-23T06:00:00Z"}'
-```
-
-消息 Hook：
-
-```bash
-curl -X POST http://127.0.0.1:19427/v1/messages \
-  -H 'Content-Type: application/json' \
-  -d '{"application":"WeChat","sender":"Alice","body":"你好","unreadCount":1,"receivedAt":"2026-09-23T06:00:00Z"}'
-```
-
-## WebDAV
-
-在“设置 > 备份与恢复”中填写 WebDAV 服务器、用户名、密码与远程路径。为了兼容自建 NAS 的普通 HTTP WebDAV，应用允许用户配置的 HTTP 地址；生产环境仍建议使用 HTTPS。当前实现通过 HTTP Basic Authentication 执行：
-
-- `PUT` 上传完整配置
-- `GET` 下载并发恢复
-- 本地导出/导入 JSON 备份文件
-
-密码不会写进配置和备份文件，而是保存在 macOS 钥匙串中；上传或恢复成功后会记住密码，下次启动自动载入。
+配置模型带有 schema version。导入旧配置或备份时会检查版本并执行规范化迁移。
 
 ## 工程结构
 
 ```text
-Sources/TouchingBarCore/      跨进程可复用的数据模型、配置、Hook、备份服务
+Sources/TouchingBarCore/      数据模型、配置、备份、Hook、宠物、歌词和系统服务
 Sources/TouchingBarDFR/       DFRFoundation 私有接口隔离层
-Sources/TouchingBar/          AppKit 应用、系统集成、Touch Bar 与 SwiftUI 设置
-Sources/TouchingBarCtl/       面向 Agent、终端和脚本的命令行 Hook 客户端
-Sources/TouchingBarChecks/    不依赖 XCTest 的核心回归检查
+Sources/TouchingBar/          AppKit 应用、Touch Bar 控制器、系统集成和 SwiftUI 设置
+Sources/TouchingBarCtl/       Agent、终端和脚本使用的命令行 Hook 客户端
+Sources/TouchingBarChecks/    不依赖 XCTest 的回归检查
 ```
 
 ## 已知边界
 
-- 未安装 shell 集成时，终端目录主要通过前台进程子进程与 `lsof` 推导；安装 zsh 集成后可以获得更准确的目录与运行时环境。
-- Dock 角标和系统消息横幅读取依赖辅助功能元素；不同 IM 与 macOS 版本可能改变 `AXStatusLabel` 或通知层级，需要增加适配器。该实现只读取可访问性文本，不修改其他应用。
-- 听写、专注模式等系统动作依赖 macOS 当前版本，无法在无辅助功能权限时完全模拟。设置中可以把这些按钮替换成自定义快捷键或命令。
-- 音乐歌词目前优先读取 Apple Music 当前曲目的歌词；Spotify 与尚未实现的流媒体播放器需要额外 Provider。
-- 当前构建使用 ad-hoc 签名。正式发布时需要 Developer ID 签名与公证；WebDAV 密码已经使用 macOS 钥匙串保存。
-- TouchingBar 不内置第三方宠物素材。安装到 `Application Support/TouchingBar/Pets` 的宠物仍受其原始授权约束；界面中的「关闭动态效果」和 macOS 的“减弱动态效果”都会让宠物使用静态帧。
+- 未安装 shell 集成时，终端目录主要通过前台进程、子进程和 `lsof` 推导；安装 zsh 集成后可以获得更准确的 `$PWD`、虚拟环境和 Node 版本。
+- Dock 角标和系统通知横幅读取依赖辅助功能元素；不同 IM 与 macOS 版本可能改变 `AXStatusLabel` 或通知层级，需要增加适配器。TouchingBar 只读取可访问性文本，不修改其他应用。
+- 听写、专注模式和部分系统动作依赖 macOS 当前版本及权限；设置中可以把这些按钮替换为快捷键或自定义命令。
+- Spotify 目前只提供播放状态，不提供歌词；网易云音乐的歌词和翻译依赖其公开接口。
+- Touch Bar 是独立硬件显示区域，高度约 30pt，宠物和长文本都会受到物理尺寸限制。
+- 当前构建使用 ad-hoc 签名。正式发布需要 Developer ID 签名与公证。
+- TouchingBar 不内置第三方宠物素材；安装到 `Application Support/TouchingBar/Pets` 的宠物仍受原始授权约束。
 
 ## CI 与发布
 
-- `.github/workflows/ci.yml` 在 macOS runner 上构建并运行核心检查，同时生成 `x86_64 + arm64` 通用 App；也可以从 Actions 页面手动触发。
-- 每次 CI 运行都会上传名为 `TouchingBar-universal` 的 artifact，包含 `TouchingBar.zip` 与 `TouchingBar.zip.sha256`。
+- `.github/workflows/ci.yml` 在 macOS runner 上构建、运行 `TouchingBarChecks`，并生成 `x86_64 + arm64` 通用 App。
+- 每次 CI 运行都会上传 `TouchingBar-universal` artifact，包含 `TouchingBar.zip` 和 `TouchingBar.zip.sha256`。
 - `.github/workflows/release.yml` 构建通用二进制、计算 SHA-256，并在推送 `v*` tag 时创建 GitHub Release。
 
 从命令行提取 CI 产物：
@@ -174,7 +260,7 @@ gh run list --workflow CI
 gh run download <run-id> -n TouchingBar-universal
 ```
 
-下载后解压目录中的 `TouchingBar.zip` 即可得到 `TouchingBar.app`。
+解压 `TouchingBar.zip` 后即可运行 `TouchingBar.app`。
 
 ## License
 
