@@ -21,6 +21,10 @@ struct NowPlayingSnapshot: Equatable {
         position: 0
     )
 
+    var isPlaying: Bool {
+        !title.isEmpty && title != "未在播放"
+    }
+
     var compactTitle: String {
         if !artist.isEmpty {
             return "\(title) · \(artist)"

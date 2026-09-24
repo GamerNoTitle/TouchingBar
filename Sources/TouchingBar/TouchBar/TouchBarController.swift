@@ -116,6 +116,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         nowPlayingService.start()
         nowPlayingService.observe { [weak self] snapshot in
             self?.latestNowPlaying = snapshot
+            self?.rebuildTouchBar()
             self?.nowPlayingViews.forEach { $0.update(snapshot) }
             self?.updateContextValues()
         }
@@ -334,15 +335,18 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 width: TouchBarLayoutMetrics.actionButtonWidth
             )
         case .nowPlaying:
-            dashboard.distribution = .fill
-            addActionButtons(
-                from: preset,
-                to: dashboard,
-                width: TouchBarLayoutMetrics.mediaControlWidth
-            )
-            let nowPlaying = NowPlayingTouchBarView(width: TouchBarLayoutMetrics.lyricsWidth)
-            nowPlayingViews.append(nowPlaying)
-            dashboard.addArrangedSubview(nowPlaying)
+            let shouldShow = !preset.effectiveHideWhenNotPlaying || latestNowPlaying?.isPlaying == true
+            if shouldShow {
+                dashboard.distribution = .fill
+                addActionButtons(
+                    from: preset,
+                    to: dashboard,
+                    width: TouchBarLayoutMetrics.mediaControlWidth
+                )
+                let nowPlaying = NowPlayingTouchBarView(width: TouchBarLayoutMetrics.lyricsWidth)
+                nowPlayingViews.append(nowPlaying)
+                dashboard.addArrangedSubview(nowPlaying)
+            }
         case .agentContext:
             addAgentSessionsView(to: dashboard)
         case .developerContext, .components:
@@ -381,7 +385,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         to dashboard: NSStackView,
         width: CGFloat
     ) {
-        for configuration in preset.items where !configuration.isHidden {
+        for configuration in preset.items where !configuration.isHidden && shouldDisplayContextItem(configuration) {
             dashboard.addArrangedSubview(
                 makeActionButtonView(configuration, preset: preset, width: width)
             )
@@ -537,8 +541,20 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     private func shouldDisplayContextItem(_ item: TouchBarItemConfiguration) -> Bool {
+        if item.hideWhenNotPlaying,
+           isMusicRelatedItem(item),
+           latestNowPlaying?.isPlaying != true {
+            return false
+        }
         guard item.presentation == .context else { return true }
         return hasDisplayableContextValue(for: item)
+    }
+
+    private func isMusicRelatedItem(_ item: TouchBarItemConfiguration) -> Bool {
+        if item.action.kind == .media {
+            return true
+        }
+        return item.contextKey == "nowPlaying" || item.contextKey == "lyric"
     }
 
     private func hasDisplayableContextValue(for item: TouchBarItemConfiguration) -> Bool {
@@ -770,6 +786,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 item.width.rawValue,
                 item.customWidth.map { String(format: "%.2f", $0) } ?? "",
                 item.isHidden ? "hidden" : "visible",
+                item.hideWhenNotPlaying ? "hide-not-playing" : "always-visible",
                 item.showsLabel ? "label" : "no-label",
                 item.dualLineLyrics ? "dual-line" : "single-line",
                 item.presentation.rawValue,
@@ -794,6 +811,8 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             preset.content.rawValue,
             items,
             adaptiveAvailability,
+            preset.effectiveHideWhenNotPlaying ? "preset-hide-not-playing" : "preset-always-visible",
+            latestNowPlaying?.isPlaying == true ? "playing" : "not-playing",
             store.configuration.hideTouchBarCloseButton ? "hide-close" : "show-close",
             store.configuration.effectiveDisableAnimations ? "animations-off" : "animations-on"
         ].joined(separator: "::")

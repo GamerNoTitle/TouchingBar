@@ -254,6 +254,7 @@ struct TouchingBarChecks {
             petID: "xiaolemi",
             petAssetID: "state:idle",
             width: .regular,
+            hideWhenNotPlaying: true,
             presentation: .image
         )
         var configuration = AppConfiguration()
@@ -274,6 +275,7 @@ struct TouchingBarChecks {
         try expect(restoredItem?.imagePath == "/tmp/xiaolemi.gif", "image component path round-trips")
         try expect(restoredItem?.petID == "xiaolemi", "pet component ID round-trips")
         try expect(restoredItem?.petAssetID == "state:idle", "pet component asset ID round-trips")
+        try expect(restoredItem?.hideWhenNotPlaying == true, "not-playing visibility setting round-trips")
     }
 
     private static func checkMetricsPresetMigration() throws {

@@ -773,6 +773,17 @@ private struct ActionItemsEditor: View {
         store.configuration.presets.first(where: { $0.id == presetID })
     }
 
+    private var presetHideWhenNotPlayingBinding: Binding<Bool> {
+        Binding(
+            get: { preset?.effectiveHideWhenNotPlaying ?? false },
+            set: { value in
+                guard var updated = preset else { return }
+                updated.hideWhenNotPlaying = value
+                store.replacePreset(updated)
+            }
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
@@ -785,6 +796,11 @@ private struct ActionItemsEditor: View {
                 } label: {
                     Label("添加按钮", systemImage: "plus")
                 }
+            }
+
+            if preset?.content == .nowPlaying {
+                Toggle("未播放时隐藏", isOn: presetHideWhenNotPlayingBinding)
+                    .toggleStyle(.switch)
             }
 
             if let preset, !preset.items.isEmpty {
@@ -1103,6 +1119,11 @@ private struct ActionItemEditor: View {
 
             actionDetails
 
+            if isMusicRelatedItem {
+                Toggle("未播放时隐藏", isOn: hideWhenNotPlayingBinding)
+                    .toggleStyle(.switch)
+            }
+
             Toggle("隐藏组件", isOn: hiddenBinding)
                 .toggleStyle(.switch)
 
@@ -1171,6 +1192,23 @@ private struct ActionItemEditor: View {
             set: { value in
                 guard var updated = currentItem else { return }
                 updated[keyPath: keyPath] = value
+                store.updateItem(presetID: presetID, item: updated)
+            }
+        )
+    }
+
+    private var isMusicRelatedItem: Bool {
+        let action = currentItem?.action ?? item.action
+        let key = currentItem?.contextKey ?? item.contextKey
+        return action.kind == .media || key == "nowPlaying" || key == "lyric"
+    }
+
+    private var hideWhenNotPlayingBinding: Binding<Bool> {
+        Binding(
+            get: { currentItem?.hideWhenNotPlaying ?? item.hideWhenNotPlaying },
+            set: { value in
+                guard var updated = currentItem else { return }
+                updated.hideWhenNotPlaying = value
                 store.updateItem(presetID: presetID, item: updated)
             }
         )
@@ -1508,6 +1546,23 @@ private struct PetItemEditor: View {
         )
     }
 
+    private var isMusicRelatedItem: Bool {
+        let action = currentItem?.action ?? item.action
+        let key = currentItem?.contextKey ?? item.contextKey
+        return action.kind == .media || key == "nowPlaying" || key == "lyric"
+    }
+
+    private var hideWhenNotPlayingBinding: Binding<Bool> {
+        Binding(
+            get: { currentItem?.hideWhenNotPlaying ?? item.hideWhenNotPlaying },
+            set: { value in
+                guard var updated = currentItem else { return }
+                updated.hideWhenNotPlaying = value
+                store.updateItem(presetID: presetID, item: updated)
+            }
+        )
+    }
+
     private var hiddenBinding: Binding<Bool> {
         Binding(
             get: { currentItem?.isHidden ?? item.isHidden },
@@ -1789,6 +1844,10 @@ private struct ContextItemEditor: View {
                 Toggle("显示标签", isOn: showsLabelBinding)
                     .toggleStyle(.switch)
             }
+            if isMusicRelatedItem {
+                Toggle("未播放时隐藏", isOn: hideWhenNotPlayingBinding)
+                    .toggleStyle(.switch)
+            }
             Toggle("隐藏组件", isOn: hiddenBinding)
                 .toggleStyle(.switch)
             HStack {
@@ -1809,6 +1868,22 @@ private struct ContextItemEditor: View {
         store.configuration.presets
             .first(where: { $0.id == presetID })?
             .items.first(where: { $0.id == itemID })
+    }
+
+    private var isMusicRelatedItem: Bool {
+        let key = currentItem?.contextKey ?? item.contextKey
+        return key == "nowPlaying" || key == "lyric"
+    }
+
+    private var hideWhenNotPlayingBinding: Binding<Bool> {
+        Binding(
+            get: { currentItem?.hideWhenNotPlaying ?? item.hideWhenNotPlaying },
+            set: { value in
+                guard var updated = currentItem else { return }
+                updated.hideWhenNotPlaying = value
+                store.updateItem(presetID: presetID, item: updated)
+            }
+        )
     }
 
     private var dualLineLyricsBinding: Binding<Bool> {
