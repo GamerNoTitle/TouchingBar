@@ -20,8 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         touchBarController = TouchBarController(store: store)
         statusBarController = StatusBarController(
             store: store,
-            openSettings: { [weak self] in self?.showSettings() },
-            presentTouchBar: { [weak self] in self?.touchBarController.present() }
+            openSettings: { [weak self] in self?.showSettings() }
         )
         settingsWindowController = SettingsWindowController(store: store)
 
@@ -82,7 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     enabled: self.store.configuration.messages.showNotificationBanners
                 )
                 self.agentNotificationController.process(
-                    snapshot.agent,
+                    snapshot.agents ?? snapshot.agent.map { [$0] } ?? [],
                     enabled: self.store.configuration.effectiveShowAgentNotifications
                 )
             }

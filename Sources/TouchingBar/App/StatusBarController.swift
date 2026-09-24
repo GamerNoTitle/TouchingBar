@@ -6,18 +6,15 @@ import TouchingBarCore
 final class StatusBarController: NSObject {
     private let store: AppStore
     private let openSettingsAction: () -> Void
-    private let presentTouchBarAction: () -> Void
     private var statusItem: NSStatusItem?
     private var cancellable: AnyCancellable?
 
     init(
         store: AppStore,
-        openSettings: @escaping () -> Void,
-        presentTouchBar: @escaping () -> Void
+        openSettings: @escaping () -> Void
     ) {
         self.store = store
         openSettingsAction = openSettings
-        presentTouchBarAction = presentTouchBar
         super.init()
         cancellable = store.$configuration
             .receive(on: RunLoop.main)
@@ -85,13 +82,6 @@ final class StatusBarController: NSObject {
         presetItem.submenu = presetMenu
         menu.addItem(presetItem)
 
-        let presentItem = menuItem(
-            title: "显示 Touch Bar",
-            action: #selector(presentTouchBar),
-            keyEquivalent: ""
-        )
-        menu.addItem(presentItem)
-
         let occupyItem = menuItem(
             title: "持续占用 Touch Bar",
             action: #selector(toggleOccupancy),
@@ -144,10 +134,6 @@ final class StatusBarController: NSObject {
     @objc private func selectPreset(_ sender: NSMenuItem) {
         guard let value = sender.representedObject as? String, let id = UUID(uuidString: value) else { return }
         store.selectPreset(id: id)
-    }
-
-    @objc private func presentTouchBar() {
-        presentTouchBarAction()
     }
 
     @objc private func toggleOccupancy() {

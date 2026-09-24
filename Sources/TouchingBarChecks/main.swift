@@ -192,6 +192,12 @@ struct TouchingBarChecks {
         try expect(running.event == "PreToolUse", "agent hook extracts event")
         try expect(running.workingDirectory == "/tmp/project", "agent hook extracts working directory")
 
+        let started = try normalizer.normalize(
+            data: Data(#"{"hook_event_name":"SessionStart","session_id":"abc","cwd":"/tmp/project"}"#.utf8),
+            fallbackProvider: "claude-code"
+        )
+        try expect(started.task == nil, "SessionStart does not use the working directory as a task")
+
         let stopped = try normalizer.normalize(
             data: Data(#"{"event":{"type":"Stop","session_id":"abc"}}"#.utf8),
             fallbackProvider: "codex"
@@ -216,9 +222,20 @@ struct TouchingBarChecks {
             sessionID: "same-session"
         )
         snapshot.upsertAgent(first)
+        let toolUpdate = AgentContext(
+            provider: "codex",
+            task: nil,
+            status: .running,
+            sessionID: "same-session",
+            tool: "apply_patch"
+        )
+        snapshot.upsertAgent(toolUpdate)
+        try expect(snapshot.agents?.first?.task == "Build", "Agent session updates preserve the original task")
+        try expect(snapshot.agents?.first?.tool == "apply_patch", "Agent session updates replace active tool")
+
         let second = AgentContext(
             provider: "codex",
-            task: "Build",
+            task: nil,
             status: .completed,
             sessionID: "same-session"
         )
@@ -226,6 +243,15 @@ struct TouchingBarChecks {
         try expect(snapshot.agents?.count == 1, "Agent sessions are upserted by session id")
         try expect(snapshot.agents?.first?.status == .completed, "latest Agent session replaces prior state")
         try expect(snapshot.value(for: "sessions")?.contains("completed") == true, "Agent session summary is exposed")
+
+        let ended = AgentContext(
+            provider: "codex",
+            status: .idle,
+            sessionID: "same-session",
+            event: "SessionEnd"
+        )
+        snapshot.upsertAgent(ended)
+        try expect(snapshot.agents == nil, "SessionEnd removes the finished Agent session")
 
         var configuration = AppConfiguration()
         guard let agentIndex = configuration.presets.firstIndex(where: { $0.kind == .agents }) else {

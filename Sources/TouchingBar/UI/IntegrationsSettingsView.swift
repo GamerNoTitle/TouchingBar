@@ -24,6 +24,7 @@ struct IntegrationsSettingsView: View {
                 messageSection
             }
             .padding(.vertical, 4)
+            .groupBoxStyle(IntegrationGroupBoxStyle())
         }
         .onAppear {
             shellHookInstalled = ShellHookInstaller().isInstalled()
@@ -333,6 +334,28 @@ private struct CodeBlock: View {
             .textSelection(.enabled)
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.black.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            .background(Color(nsColor: .textBackgroundColor).opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+            }
+    }
+}
+
+private struct IntegrationGroupBoxStyle: GroupBoxStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            configuration.label
+                .font(.headline)
+            Divider()
+            configuration.content
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        }
     }
 }

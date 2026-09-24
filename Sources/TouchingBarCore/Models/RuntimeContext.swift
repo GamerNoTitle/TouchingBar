@@ -119,6 +119,42 @@ public struct AgentContext: Codable, Equatable, Sendable {
         let seconds = Int(interval) % 60
         return minutes > 0 ? "\(minutes)m \(seconds)s" : "\(seconds)s"
     }
+
+    public var isSessionEnded: Bool {
+        guard let event else { return false }
+        let normalized = event
+            .replacingOccurrences(of: "_", with: "")
+            .replacingOccurrences(of: "-", with: "")
+            .lowercased()
+        return normalized.contains("sessionend")
+    }
+
+    public func isStale(now: Date = Date()) -> Bool {
+        let age = max(0, now.timeIntervalSince(updatedAt))
+        switch status {
+        case .completed, .failed:
+            return age > 10 * 60
+        case .idle, .unknown:
+            return age > 30 * 60
+        case .waiting, .running:
+            return age > 30 * 60
+        }
+    }
+
+    public var presentationPriority: Int {
+        switch status {
+        case .waiting, .failed:
+            return 4
+        case .running:
+            return 3
+        case .idle:
+            return 2
+        case .unknown:
+            return 1
+        case .completed:
+            return 0
+        }
+    }
 }
 
 public struct MessageContext: Codable, Identifiable, Equatable, Sendable {
@@ -170,18 +206,71 @@ public struct RuntimeContextSnapshot: Codable, Equatable, Sendable {
         self.messages = messages
     }
 
-    public mutating func upsertAgent(_ context: AgentContext) {
+    public mutating func pruneStaleAgents(now: Date = Date()) {
         var list = agents ?? agent.map { [$0] } ?? []
-        if let sessionID = context.sessionID,
-           let index = list.firstIndex(where: { $0.sessionID == sessionID }) {
-            list[index] = context
+        list.removeAll { $0.isStale(now: now) }
+        list = Self.sortedAgents(list)
+        agents = list.isEmpty ? nil : Array(list.prefix(10))
+        agent = list.first
+    }
+
+    public mutating func upsertAgent(_ context: AgentContext) {
+        pruneStaleAgents(now: context.updatedAt)
+        var list = agents ?? agent.map { [$0] } ?? []
+
+        if context.isSessionEnded {
+            if let sessionID = context.sessionID {
+                list.removeAll { $0.sessionID == sessionID }
+            } else {
+                list.removeAll { $0.provider == context.provider }
+            }
+            list = Self.sortedAgents(list)
+            agents = list.isEmpty ? nil : Array(list.prefix(10))
+            agent = list.first
+            return
+        }
+
+        let index = context.sessionID.flatMap { sessionID in
+            list.firstIndex { $0.sessionID == sessionID }
+        } ?? list.firstIndex {
+            $0.provider == context.provider
+                && (context.workingDirectory == nil || $0.workingDirectory == context.workingDirectory)
+        }
+
+        if let index {
+            list[index] = Self.merge(existing: list[index], update: context)
         } else {
-            list.removeAll { $0.provider == context.provider && $0.task == context.task }
             list.insert(context, at: 0)
         }
-        list.sort { $0.updatedAt > $1.updatedAt }
-        agents = Array(list.prefix(10))
-        agent = context
+
+        list = Self.sortedAgents(list)
+        agents = list.isEmpty ? nil : Array(list.prefix(10))
+        agent = list.first
+    }
+
+    private static func merge(existing: AgentContext, update: AgentContext) -> AgentContext {
+        var merged = update
+        merged.task = update.task ?? existing.task
+        merged.detail = update.detail ?? existing.detail
+        merged.sessionID = update.sessionID ?? existing.sessionID
+        merged.event = update.event ?? existing.event
+        merged.tool = update.tool ?? existing.tool
+        merged.workingDirectory = update.workingDirectory ?? existing.workingDirectory
+        merged.message = update.message ?? existing.message
+        merged.startedAt = existing.startedAt ?? update.startedAt
+        if update.status == .unknown {
+            merged.status = existing.status
+        }
+        return merged
+    }
+
+    private static func sortedAgents(_ agents: [AgentContext]) -> [AgentContext] {
+        agents.sorted {
+            if $0.presentationPriority != $1.presentationPriority {
+                return $0.presentationPriority > $1.presentationPriority
+            }
+            return $0.updatedAt > $1.updatedAt
+        }
     }
 
     public func value(for contextKey: String) -> String? {
@@ -189,8 +278,9 @@ public struct RuntimeContextSnapshot: Codable, Equatable, Sendable {
         case "path":
             return developer?.compactPath
         case "branch":
-            return developer?.branch ?? "无 Git"
+            return developer?.branch
         case "changes":
+            guard developer?.branch != nil else { return nil }
             return developer?.diffSummary
         case "python":
             guard let developer else { return nil }

@@ -27,19 +27,19 @@ struct SystemMetricsSnapshot: Equatable {
         }
 
         let span = maximum - minimum
-        let minimumSpan = max(abs(maximum) * 0.05, 0.5)
+        let minimumSpan = max(abs(maximum) * 0.001, 0.0001)
         let expandedMinimum: Double
         let expandedMaximum: Double
-        if span < minimumSpan {
-            let expansion = max(abs(maximum) * 0.2, 1)
+        if span <= minimumSpan {
+            let expansion = max(abs(maximum) * 0.05, 1)
             expandedMinimum = max(0, maximum - expansion)
             expandedMaximum = maximum + expansion
         } else {
-            let padding = span * 0.15
+            let padding = span * 0.05
             expandedMinimum = minimum == 0 ? 0 : Swift.max(0, minimum - padding)
             expandedMaximum = maximum + padding
         }
-        return expandedMinimum...max(expandedMinimum + 0.001, expandedMaximum)
+        return expandedMinimum...max(expandedMinimum + 0.0001, expandedMaximum)
     }
 
     func value(for key: String) -> String? {

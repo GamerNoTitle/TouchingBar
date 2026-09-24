@@ -58,7 +58,7 @@ struct PresetsSettingsView: View {
             if let selectedPresetID,
                let preset = store.configuration.presets.first(where: { $0.id == selectedPresetID }) {
                 PresetDetailView(presetID: preset.id, selectedItemID: $selectedItemID)
-                    .frame(minWidth: 500)
+                    .frame(minWidth: 500, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             } else {
                 SettingsEmptyState(
                     title: "选择一个配置",
@@ -142,6 +142,7 @@ private struct PresetDetailView: View {
                 }
             }
             .padding(18)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 
@@ -672,6 +673,7 @@ private struct MessagesPresetDetail: View {
             .lineLimit(8, reservesSpace: true)
             .font(.system(.body, design: .monospaced))
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 

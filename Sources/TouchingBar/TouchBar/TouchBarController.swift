@@ -10,6 +10,11 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private static let systemTrayIdentifier = NSTouchBarItem.Identifier("app.touchingbar.system-tray")
     private static let nowPlayingIdentifier = NSTouchBarItem.Identifier("app.touchingbar.now-playing")
     private static let messagesIdentifier = NSTouchBarItem.Identifier("app.touchingbar.messages")
+    private static let adaptiveContextKeys: Set<String> = [
+        "path", "branch", "changes", "python", "node", "java", "go", "rust", "ruby", "php",
+        "swift", "docker", "kubernetes", "terraform", "cmake", "xcode",
+        "cpu", "gpu", "memory", "disk", "cpuTemperature", "fanRPM", "networkDownload", "networkUpload"
+    ]
 
     private let store: AppStore
     private let actionExecutor = TouchBarActionExecutor()
@@ -29,6 +34,8 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private var nowPlayingViews: [NowPlayingTouchBarView] = []
     private var messageViews: [MessagesTouchBarView] = []
     private var latestNowPlaying: NowPlayingSnapshot?
+    private var agentSessionScrollViews: [ContextTouchBarScrollView] = []
+    private var agentSessionCards: [AgentSessionCardView] = []
     private var badgeCounts: [ApplicationUnreadCount] = []
     private var isStarted = false
     private var cancellables: Set<AnyCancellable> = []
@@ -51,7 +58,10 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             .sink { [weak self] snapshot in self?.updateRuntime(snapshot) }
         store.$systemMetrics
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.updateContextValues() }
+            .sink { [weak self] _ in
+                self?.rebuildTouchBar()
+                self?.updateContextValues()
+            }
             .store(in: &cancellables)
         activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
@@ -86,22 +96,17 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         badgeTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refreshDockBadges() }
         }
-        presentationTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
-            Task { @MainActor in
+        refreshDockBadges()
+        if store.configuration.alwaysOccupyTouchBar {
+            createSystemTrayItem()
+            startPresentationTimerIfNeeded()
+        }
+        rebuildTouchBar()
+        if store.configuration.alwaysOccupyTouchBar {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
                 guard let self, self.store.configuration.alwaysOccupyTouchBar else { return }
-                guard self.touchBar?.isVisible != true else { return }
                 self.present()
             }
-        }
-        refreshDockBadges()
-        createSystemTrayItem()
-        rebuildTouchBar()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-            guard let self, self.store.configuration.alwaysOccupyTouchBar else { return }
-            if let systemTrayItem = self.systemTrayItem {
-                TBSetControlStripPresence(systemTrayItem.identifier.rawValue, true)
-            }
-            self.present()
         }
         updateTouchBarStatus()
     }
@@ -113,6 +118,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         if let systemTrayItem {
             TBSetControlStripPresence(systemTrayItem.identifier.rawValue, false)
             TBSystemTrayRemoveItem(systemTrayItem)
+            self.systemTrayItem = nil
         }
         nowPlayingService.stop()
         badgeTimer?.invalidate()
@@ -123,9 +129,21 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
     func updateOccupancy() {
         if store.configuration.alwaysOccupyTouchBar {
+            createSystemTrayItem()
+            if let systemTrayItem {
+                TBSetControlStripPresence(systemTrayItem.identifier.rawValue, true)
+            }
+            startPresentationTimerIfNeeded()
             present()
         } else {
             dismiss()
+            presentationTimer?.invalidate()
+            presentationTimer = nil
+            if let systemTrayItem {
+                TBSetControlStripPresence(systemTrayItem.identifier.rawValue, false)
+                TBSystemTrayRemoveItem(systemTrayItem)
+                self.systemTrayItem = nil
+            }
         }
     }
 
@@ -155,6 +173,17 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     func dismiss() {
         guard let touchBar else { return }
         TBDismissSystemModalTouchBar(touchBar)
+    }
+
+    private func startPresentationTimerIfNeeded() {
+        guard presentationTimer == nil else { return }
+        presentationTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.store.configuration.alwaysOccupyTouchBar else { return }
+                guard self.touchBar?.isVisible != true else { return }
+                self.present()
+            }
+        }
     }
 
     private func createSystemTrayItem() {
@@ -194,6 +223,8 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         contextConfigurations.removeAll()
         nowPlayingViews.removeAll()
         messageViews.removeAll()
+        agentSessionScrollViews.removeAll()
+        agentSessionCards.removeAll()
         createdItemIdentifiers.removeAll()
 
         let identifiers: [NSTouchBarItem.Identifier] = [Self.actionDashboardIdentifier]
@@ -276,7 +307,9 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             let nowPlaying = NowPlayingTouchBarView(width: TouchBarLayoutMetrics.lyricsWidth)
             nowPlayingViews.append(nowPlaying)
             dashboard.addArrangedSubview(nowPlaying)
-        case .developerContext, .agentContext, .components:
+        case .agentContext:
+            addAgentSessionsView(to: dashboard)
+        case .developerContext, .components:
             addContextViews(from: preset, to: dashboard)
         case .unreadMessages:
             let messages = MessagesTouchBarView(width: 970)
@@ -356,8 +389,34 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         return wrapper
     }
 
+    private func addAgentSessionsView(to dashboard: NSStackView) {
+        let scrollView = ContextTouchBarScrollView(contentWidth: 0, spacing: 4)
+        scrollView.onVerticalSwipe = { [weak self] direction in
+            self?.store.selectAdjacentPreset(offset: direction)
+        }
+        agentSessionScrollViews.append(scrollView)
+        dashboard.addArrangedSubview(scrollView)
+        updateAgentSessions()
+    }
+
+    private func updateAgentSessions() {
+        let agents = store.runtime.agents ?? store.runtime.agent.map { [$0] } ?? []
+        let cards = agents.prefix(8).map { AgentSessionCardView(agent: $0) }
+        agentSessionCards = Array(cards)
+        if agentSessionCards.isEmpty {
+            let empty = NSTextField(labelWithString: "暂无 Agent 会话")
+            empty.font = .systemFont(ofSize: 0, weight: .medium)
+            empty.textColor = NSColor.white.withAlphaComponent(0.7)
+            agentSessionScrollViews.forEach { $0.replaceContentViews([(empty, 180)]) }
+            return
+        }
+        let entries = agentSessionCards.map { ($0 as NSView, AgentSessionCardView.preferredWidth) }
+        agentSessionScrollViews.forEach { $0.replaceContentViews(entries) }
+    }
+
     private func addContextViews(from preset: TouchBarPreset, to dashboard: NSStackView) {
-        let widths = preset.items.map { configuration in
+        let visibleItems = preset.items.filter { shouldDisplayContextItem($0, preset: preset) }
+        let widths = visibleItems.map { configuration in
             contextWidth(for: configuration, preset: preset)
         }
         let spacing: CGFloat = 4
@@ -370,7 +429,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             self?.store.selectAdjacentPreset(offset: direction)
         }
 
-        for (index, configuration) in preset.items.enumerated() {
+        for (index, configuration) in visibleItems.enumerated() {
             let width = widths[index]
             if configuration.presentation == .context {
                 let view = ContextTouchBarView(title: configuration.label, width: width)
@@ -388,6 +447,24 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         }
         scrollView.finishLayout()
         dashboard.addArrangedSubview(scrollView)
+    }
+
+    private func shouldDisplayContextItem(
+        _ item: TouchBarItemConfiguration,
+        preset: TouchBarPreset
+    ) -> Bool {
+        guard item.presentation == .context else { return true }
+        guard preset.kind == .developer || preset.kind == .metrics else { return true }
+        return hasDisplayableContextValue(for: item)
+    }
+
+    private func hasDisplayableContextValue(for item: TouchBarItemConfiguration) -> Bool {
+        guard let key = item.contextKey,
+              Self.adaptiveContextKeys.contains(key),
+              let value = contextValue(for: key) else {
+            return true
+        }
+        return !value.isEmpty && value != "—"
     }
 
     private func contextWidth(
@@ -450,7 +527,9 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     private func updateRuntime(_ snapshot: RuntimeContextSnapshot) {
+        rebuildTouchBar()
         updateContextValues()
+        updateAgentSessions()
         if let latest = snapshot.messages.first {
             messageViews.forEach { $0.update(badges: badgeCounts, latestMessage: latest) }
         }
@@ -541,12 +620,20 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 item.action.volume?.rawValue ?? ""
             ].joined(separator: ":")
         }.joined(separator: "|")
+        let adaptiveAvailability = preset.items
+            .filter { $0.presentation == .context }
+            .compactMap(\.contextKey)
+            .filter(Self.adaptiveContextKeys.contains)
+            .sorted()
+            .map { key in "\(key)=\(hasDisplayableContextValue(for: TouchBarItemConfiguration(label: "", presentation: .context, contextKey: key)))" }
+            .joined(separator: "|")
         return [
             preset.id.uuidString,
             preset.name,
             preset.kind.rawValue,
             preset.content.rawValue,
             items,
+            adaptiveAvailability,
             store.configuration.hideTouchBarCloseButton ? "hide-close" : "show-close"
         ].joined(separator: "::")
     }
@@ -618,6 +705,20 @@ private final class ContextTouchBarScrollView: NSScrollView {
     func addContentView(_ view: NSView, width: CGFloat) {
         view.widthAnchor.constraint(equalToConstant: width).isActive = true
         contentStack.addArrangedSubview(view)
+    }
+
+    func replaceContentViews(_ entries: [(NSView, CGFloat)]) {
+        contentStack.arrangedSubviews.forEach {
+            contentStack.removeArrangedSubview($0)
+            $0.removeFromSuperview()
+        }
+        for (view, width) in entries {
+            addContentView(view, width: width)
+        }
+        let totalWidth = entries.reduce(CGFloat(0)) { $0 + $1.1 }
+            + CGFloat(max(0, entries.count - 1)) * contentStack.spacing
+        contentStack.frame = NSRect(x: 0, y: 0, width: totalWidth, height: 30)
+        finishLayout()
     }
 
     func finishLayout() {
@@ -747,6 +848,108 @@ private final class ContextTouchBarView: NSView {
             valueLabel.isHidden = false
             sparkline.isHidden = true
         }
+    }
+}
+
+private final class AgentSessionCardView: NSView {
+    static let preferredWidth: CGFloat = 280
+
+    private let titleLabel = NSTextField(labelWithString: "")
+    private let detailLabel = NSTextField(labelWithString: "")
+    private let statusStripe = NSView()
+
+    init(agent: AgentContext) {
+        super.init(frame: NSRect(x: 0, y: 0, width: Self.preferredWidth, height: 28))
+        wantsLayer = true
+        layer?.cornerRadius = 5
+        layer?.backgroundColor = NSColor.white.withAlphaComponent(0.08).cgColor
+        layer?.borderWidth = 1
+
+        statusStripe.wantsLayer = true
+        statusStripe.translatesAutoresizingMaskIntoConstraints = false
+        statusStripe.layer?.cornerRadius = 1.5
+        addSubview(statusStripe)
+
+        titleLabel.font = .systemFont(ofSize: 11, weight: .semibold)
+        titleLabel.textColor = .white
+        titleLabel.lineBreakMode = .byTruncatingTail
+        detailLabel.font = .systemFont(ofSize: 10)
+        detailLabel.textColor = NSColor.white.withAlphaComponent(0.76)
+        detailLabel.lineBreakMode = .byTruncatingTail
+
+        let stack = NSStackView(views: [titleLabel, detailLabel])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 0
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stack)
+        NSLayoutConstraint.activate([
+            statusStripe.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 5),
+            statusStripe.centerYAnchor.constraint(equalTo: centerYAnchor),
+            statusStripe.widthAnchor.constraint(equalToConstant: 3),
+            statusStripe.heightAnchor.constraint(equalToConstant: 20),
+            stack.leadingAnchor.constraint(equalTo: statusStripe.trailingAnchor, constant: 6),
+            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -7),
+            stack.centerYAnchor.constraint(equalTo: centerYAnchor)
+        ])
+        update(agent: agent)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: Self.preferredWidth, height: 28)
+    }
+
+    func update(agent: AgentContext) {
+        let statusText: String
+        let symbol: String
+        let color: NSColor
+        switch agent.status {
+        case .running:
+            statusText = "执行中"; symbol = "●"; color = .systemBlue
+        case .waiting:
+            statusText = "等待确认"; symbol = "!"; color = .systemOrange
+        case .completed:
+            statusText = "已完成"; symbol = "✓"; color = .systemGreen
+        case .failed:
+            statusText = "失败"; symbol = "×"; color = .systemRed
+        case .idle:
+            statusText = "空闲"; symbol = "○"; color = .secondaryLabelColor
+        case .unknown:
+            statusText = "已连接"; symbol = "·"; color = .tertiaryLabelColor
+        }
+
+        titleLabel.stringValue = "\(symbol)  \(agent.provider) · \(statusText)"
+        titleLabel.textColor = color
+        statusStripe.layer?.backgroundColor = color.cgColor
+        layer?.borderColor = color.withAlphaComponent(0.35).cgColor
+
+        let primary = (agent.task ?? agent.message ?? agent.event ?? "Agent 会话")
+            .replacingOccurrences(of: "\n", with: " ")
+        let context = agent.tool ?? agent.detail
+        let directory = agent.workingDirectory.map { path -> String in
+            let home = FileManager.default.homeDirectoryForCurrentUser.path
+            let shortened = path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
+            return URL(fileURLWithPath: shortened).lastPathComponent
+        }
+        detailLabel.stringValue = [primary, context, directory]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+
+        toolTip = [
+            "\(agent.provider) · \(statusText)",
+            primary,
+            context,
+            agent.workingDirectory,
+            agent.startedAt.map { "开始于 \($0.formatted(date: .omitted, time: .shortened))" },
+            "更新于 \(agent.updatedAt.formatted(date: .omitted, time: .shortened))"
+        ]
+        .compactMap { $0 }
+        .joined(separator: "\n")
     }
 }
 

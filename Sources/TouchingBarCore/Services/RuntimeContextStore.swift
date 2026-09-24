@@ -51,9 +51,10 @@ public final class RuntimeContextStore: @unchecked Sendable {
 
     private func loadUnlocked() -> RuntimeContextSnapshot {
         guard let data = try? Data(contentsOf: fileURL),
-              let snapshot = try? decoder.decode(RuntimeContextSnapshot.self, from: data) else {
+              var snapshot = try? decoder.decode(RuntimeContextSnapshot.self, from: data) else {
             return RuntimeContextSnapshot()
         }
+        snapshot.pruneStaleAgents()
         return snapshot
     }
 

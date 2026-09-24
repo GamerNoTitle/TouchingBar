@@ -27,7 +27,7 @@ public struct AgentHookNormalizer: Sendable {
         ]) ?? ""
         let status = status(for: eventName, payload: event)
         let task = truncate(firstString(in: event, keys: [
-            "task", "prompt", "message", "title", "summary", "command", "cwd"
+            "task", "prompt", "title", "summary", "command"
         ]), length: 96)
         let toolName = firstString(in: event, keys: ["tool_name", "tool", "name"])
         let workingDirectory = firstString(in: event, keys: ["cwd", "working_directory", "workingDirectory"])
