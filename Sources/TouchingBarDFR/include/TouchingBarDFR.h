@@ -23,6 +23,9 @@ FOUNDATION_EXPORT void TBDismissSystemModalTouchBar(NSTouchBar *touchBar);
 /// Hides the close button while the owning app is frontmost.
 FOUNDATION_EXPORT void TBSetSystemModalShowsCloseBoxWhenFrontMost(BOOL show);
 
+/// Reads the current built-in keyboard backlight level as 0...1.
+FOUNDATION_EXPORT BOOL TBGetKeyboardBacklight(float *level);
+
 /// Sets all built-in keyboard backlights to 0...1.
 FOUNDATION_EXPORT BOOL TBSetKeyboardBacklight(float level);
 

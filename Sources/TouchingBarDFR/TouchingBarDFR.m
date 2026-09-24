@@ -94,6 +94,31 @@ void TBSetSystemModalShowsCloseBoxWhenFrontMost(BOOL show) {
 }
 
 
+BOOL TBGetKeyboardBacklight(float *level) {
+    if (level == NULL) { return NO; }
+    void *handle = dlopen("/System/Library/PrivateFrameworks/CoreBrightness.framework/CoreBrightness", RTLD_LAZY | RTLD_LOCAL);
+    if (handle == NULL) { return NO; }
+    Class cls = NSClassFromString(@"KeyboardBrightnessClient");
+    if (cls == Nil) { return NO; }
+    id client = [[cls alloc] init];
+    SEL idsSelector = NSSelectorFromString(@"copyKeyboardBacklightIDs");
+    SEL getSelector = NSSelectorFromString(@"brightnessForKeyboard:");
+    if (![client respondsToSelector:idsSelector] || ![client respondsToSelector:getSelector]) { return NO; }
+
+    NSArray *identifiers = ((id (*)(id, SEL))objc_msgSend)(client, idsSelector);
+    typedef float (*GetBrightnessFunction)(id, SEL, unsigned long long);
+    GetBrightnessFunction getBrightness = (GetBrightnessFunction)objc_msgSend;
+    if (identifiers.count == 0) {
+        *level = getBrightness(client, getSelector, 0);
+        return YES;
+    }
+    for (NSNumber *identifier in identifiers) {
+        *level = getBrightness(client, getSelector, identifier.unsignedLongLongValue);
+        return YES;
+    }
+    return NO;
+}
+
 BOOL TBSetKeyboardBacklight(float level) {
     void *handle = dlopen("/System/Library/PrivateFrameworks/CoreBrightness.framework/CoreBrightness", RTLD_LAZY | RTLD_LOCAL);
     if (handle == NULL) { return NO; }

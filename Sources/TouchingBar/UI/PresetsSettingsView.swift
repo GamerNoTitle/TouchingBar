@@ -447,11 +447,11 @@ private struct CustomPresetEditor: View {
         Button("亮度增") {
             addAction("亮度增", symbol: "sun.max", width: .compact, action: ActionSpec(kind: .brightness, value: "up"))
         }
-        Button("键盘灯开") {
-            addAction("键盘灯开", symbol: "light.max", width: .compact, action: ActionSpec(kind: .keyboardBacklight, value: "on"))
+        Button("键盘灯 +") {
+            addAction("键盘灯 +", symbol: "light.max", width: .regular, action: ActionSpec(kind: .keyboardBacklight, value: "up"))
         }
-        Button("键盘灯关") {
-            addAction("键盘灯关", symbol: "light.min", width: .compact, action: ActionSpec(kind: .keyboardBacklight, value: "off"))
+        Button("键盘灯 -") {
+            addAction("键盘灯 -", symbol: "light.min", width: .regular, action: ActionSpec(kind: .keyboardBacklight, value: "down"))
         }
         Button("静音") {
             addAction("静音", symbol: "speaker.slash.fill", width: .compact, action: ActionSpec(kind: .volume, volume: .mute))
@@ -626,8 +626,8 @@ private struct IconPickerView: View {
         .init(id: "rectangle.3.group", title: "调度中心", keywords: "窗口 任务 调度", category: "系统"),
         .init(id: "sun.min", title: "亮度减", keywords: "屏幕 亮度 太阳", category: "系统"),
         .init(id: "sun.max", title: "亮度增", keywords: "屏幕 亮度 太阳", category: "系统"),
-        .init(id: "light.max", title: "键盘灯开", keywords: "键盘 背光 灯", category: "系统"),
-        .init(id: "light.min", title: "键盘灯关", keywords: "键盘 背光 灯", category: "系统"),
+        .init(id: "light.max", title: "键盘灯 +", keywords: "键盘 背光 灯 增亮", category: "系统"),
+        .init(id: "light.min", title: "键盘灯 -", keywords: "键盘 背光 灯 调暗", category: "系统"),
         .init(id: "moon.fill", title: "专注", keywords: "月亮 勿扰 专注", category: "系统"),
         .init(id: "display", title: "显示器", keywords: "屏幕 显示", category: "系统"),
         .init(id: "keyboard", title: "键盘", keywords: "输入 快捷键", category: "系统"),
@@ -1175,8 +1175,8 @@ private struct ActionItemEditor: View {
             }
         case .keyboardBacklight:
             Picker("键盘背光", selection: optionalBinding(\.action.value)) {
-                Text("打开").tag("on")
-                Text("关闭").tag("off")
+                Text("调暗").tag("down")
+                Text("增亮").tag("up")
             }
         case .keyboardShortcut:
             TextField("按键（如 a、space、up、F1）", text: shortcutBinding(\.key))

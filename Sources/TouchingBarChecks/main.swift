@@ -50,8 +50,8 @@ struct TouchingBarChecks {
         try expect(systemItems[1].action.kind == .brightness && systemItems[1].action.value == "up", "F2 brightness up")
         try expect(systemItems[2].action.kind == .missionControl, "F3 Mission Control")
         try expect(systemItems[3].action.kind == .lockScreen, "F4 locks the screen")
-        try expect(systemItems[4].action.kind == .keyboardBacklight && systemItems[4].action.value == "off", "F5 disables keyboard backlight")
-        try expect(systemItems[5].action.kind == .keyboardBacklight && systemItems[5].action.value == "on", "F6 enables keyboard backlight")
+        try expect(systemItems[4].action.kind == .keyboardBacklight && systemItems[4].action.value == "down", "F5 dims keyboard backlight")
+        try expect(systemItems[5].action.kind == .keyboardBacklight && systemItems[5].action.value == "up", "F6 brightens keyboard backlight")
         try expect(systemItems[6].action.media == .previous, "F7 previous track")
         try expect(systemItems[7].action.media == .playPause, "F8 play/pause")
         try expect(systemItems[8].action.media == .next, "F9 next track")
@@ -351,8 +351,8 @@ struct TouchingBarChecks {
         configuration.normalize()
         let items = configuration.presets[presetIndex].items
         try expect(items[3].action.kind == .lockScreen, "existing F4 migrates to lock screen")
-        try expect(items[4].action.kind == .keyboardBacklight && items[4].action.value == "off", "F5 is keyboard backlight off")
-        try expect(items[5].action.kind == .keyboardBacklight && items[5].action.value == "on", "F6 is keyboard backlight on")
+        try expect(items[4].action.kind == .keyboardBacklight && items[4].action.value == "down", "F5 migrates to keyboard backlight down")
+        try expect(items[5].action.kind == .keyboardBacklight && items[5].action.value == "up", "F6 migrates to keyboard backlight up")
 
         configuration.presets[presetIndex].items[4].action = ActionSpec(kind: .keyboardBacklight, value: "on")
         configuration.presets[presetIndex].items[4].symbolName = "light.max"
@@ -360,8 +360,8 @@ struct TouchingBarChecks {
         configuration.presets[presetIndex].items[5].symbolName = "light.min"
         configuration.normalize()
         let migratedItems = configuration.presets[presetIndex].items
-        try expect(migratedItems[4].action.value == "off", "existing F5 is migrated to off")
-        try expect(migratedItems[5].action.value == "on", "existing F6 is migrated to on")
+        try expect(migratedItems[4].action.value == "down", "existing F5 migrates to keyboard backlight down")
+        try expect(migratedItems[5].action.value == "up", "existing F6 migrates to keyboard backlight up")
     }
 
     private static func checkRuntimeFormatting() throws {

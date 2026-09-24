@@ -56,7 +56,22 @@ final class TouchBarActionExecutor {
         case .lockScreen:
             _ = TBLockScreen()
         case .keyboardBacklight:
-            _ = TBSetKeyboardBacklight(action.value == "off" ? 0 : 1)
+            setKeyboardBacklight(direction: action.value ?? "up")
+        }
+    }
+
+    private func setKeyboardBacklight(direction: String) {
+        var current: Float = 0
+        if TBGetKeyboardBacklight(&current) {
+            let step: Float = 0.0625
+            let isDown = direction == "down" || direction == "off"
+            let target = isDown
+                ? max(0, current - step)
+                : min(1, current + step)
+            _ = TBSetKeyboardBacklight(target)
+        } else {
+            // Legacy fallback for keyboards whose level cannot be read.
+            _ = TBSetKeyboardBacklight(direction == "down" || direction == "off" ? 0 : 1)
         }
     }
 
