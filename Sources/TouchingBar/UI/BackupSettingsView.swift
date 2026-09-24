@@ -20,6 +20,7 @@ struct BackupSettingsView: View {
                         savePassword()
                         passwordFocused = false
                     }
+                TextField("远程文件路径", text: webDAVBinding(\.remotePath))
                 Text("密码会在输入框失焦后自动保存到 macOS 钥匙串，不会写入配置文件或备份文件。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
