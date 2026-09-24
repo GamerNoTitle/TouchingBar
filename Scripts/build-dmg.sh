@@ -71,6 +71,9 @@ BACKGROUND_POSIX_PATH="$MOUNT_DIR/.background/background.png"
 open "$MOUNT_DIR"
 sleep 2
 
+# Finder bounds include the title bar. 600x426 outer bounds keeps the
+# background content area at the intended 600x400 design canvas.
+
 osascript <<APPLESCRIPT
 tell application "Finder"
     tell disk "$VOLUME_NAME"
@@ -78,7 +81,7 @@ tell application "Finder"
         set current view of container window to icon view
         set toolbar visible of container window to false
         set statusbar visible of container window to false
-        set bounds of container window to {360, 120, 960, 520}
+        set bounds of container window to {360, 120, 960, 546}
         set theViewOptions to icon view options of container window
         set arrangement of theViewOptions to not arranged
         set icon size of theViewOptions to 104
