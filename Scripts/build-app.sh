@@ -37,6 +37,9 @@ build_arch() {
 
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$CONTENTS_DIR/Frameworks"
 cp "$ROOT/Resources/Info.plist" "$CONTENTS_DIR/Info.plist"
+if [ -f "$ROOT/Resources/AppIcon.icns" ]; then
+    cp "$ROOT/Resources/AppIcon.icns" "$RESOURCES_DIR/AppIcon.icns"
+fi
 
 MRA_BUILD_DIR="$(MRA_BUILD_DIR="$ROOT/.build/mediaremote-adapter" "$ROOT/Scripts/build-mediaremote-adapter.sh" "$ARCHS" | tail -n 1)"
 cp -R "$MRA_BUILD_DIR/MediaRemoteAdapter.framework" "$CONTENTS_DIR/Frameworks/"

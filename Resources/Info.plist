@@ -8,6 +8,8 @@
     <string>TouchingBar</string>
     <key>CFBundleExecutable</key>
     <string>TouchingBar</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
     <string>app.touchingbar</string>
     <key>CFBundleInfoDictionaryVersion</key>

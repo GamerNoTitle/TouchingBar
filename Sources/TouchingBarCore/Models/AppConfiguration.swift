@@ -46,6 +46,8 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
     public var schemaVersion: Int
     public var id: UUID
     public var activePresetID: UUID?
+    /// Retained for backward-compatible configuration decoding. While TouchingBar
+    /// is running it always occupies the Touch Bar; quitting releases it.
     public var alwaysOccupyTouchBar: Bool
     public var hideTouchBarCloseButton: Bool
     public var menuBar: MenuBarSettings

@@ -82,14 +82,6 @@ final class StatusBarController: NSObject {
         presetItem.submenu = presetMenu
         menu.addItem(presetItem)
 
-        let occupyItem = menuItem(
-            title: "持续占用 Touch Bar",
-            action: #selector(toggleOccupancy),
-            keyEquivalent: ""
-        )
-        occupyItem.state = store.configuration.alwaysOccupyTouchBar ? .on : .off
-        menu.addItem(occupyItem)
-
         let statusLineItem = menuItem(
             title: store.touchBarStatus,
             action: nil,
@@ -108,7 +100,7 @@ final class StatusBarController: NSObject {
         menu.addItem(settingsItem)
 
         let quitItem = menuItem(
-            title: "退出 TouchingBar",
+            title: "退出 TouchingBar（停止占用）",
             action: #selector(quit),
             keyEquivalent: "q"
         )
@@ -134,10 +126,6 @@ final class StatusBarController: NSObject {
     @objc private func selectPreset(_ sender: NSMenuItem) {
         guard let value = sender.representedObject as? String, let id = UUID(uuidString: value) else { return }
         store.selectPreset(id: id)
-    }
-
-    @objc private func toggleOccupancy() {
-        store.updateConfiguration { $0.alwaysOccupyTouchBar.toggle() }
     }
 
     @objc private func openSettings() {

@@ -32,13 +32,6 @@ struct GeneralSettingsView: View {
         )
     }
 
-    private var occupyBinding: Binding<Bool> {
-        Binding(
-            get: { store.configuration.alwaysOccupyTouchBar },
-            set: { value in store.updateConfiguration { $0.alwaysOccupyTouchBar = value } }
-        )
-    }
-
     private var closeBoxBinding: Binding<Bool> {
         Binding(
             get: { store.configuration.hideTouchBarCloseButton },
@@ -50,9 +43,10 @@ struct GeneralSettingsView: View {
         Form {
             Section {
                 Toggle("在菜单栏显示 TouchingBar", isOn: menuBarBinding)
-                Toggle("持续占用 Touch Bar", isOn: occupyBinding)
                 Toggle("隐藏 Touch Bar 关闭按钮", isOn: closeBoxBinding)
-                    .disabled(!store.configuration.alwaysOccupyTouchBar)
+                Text("TouchingBar 运行期间会持续占用 Touch Bar；不使用请从菜单栏退出 TouchingBar。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             } header: {
                 Text("应用")
             }

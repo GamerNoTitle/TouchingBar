@@ -65,7 +65,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .receive(on: RunLoop.main)
             .sink { [weak self] configuration in
                 self?.statusBarController.update()
-                self?.touchBarController.updateOccupancy()
                 self?.messageBannerMonitor.update(
                     bundleIdentifiers: configuration.messages.monitoredApplications
                 )

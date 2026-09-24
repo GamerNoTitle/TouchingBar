@@ -78,7 +78,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                guard let self, self.store.configuration.alwaysOccupyTouchBar else { return }
+                guard let self, self.isStarted else { return }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                     self.present()
                 }
@@ -106,10 +106,8 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             Task { @MainActor in self?.refreshDockBadges() }
         }
         refreshDockBadges()
-        if store.configuration.alwaysOccupyTouchBar {
-            createSystemTrayItem()
-            startPresentationTimerIfNeeded()
-        }
+        createSystemTrayItem()
+        startPresentationTimerIfNeeded()
         rebuildTouchBar()
         updateTouchBarStatus()
     }
@@ -130,28 +128,8 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         presentationTimer = nil
     }
 
-    func updateOccupancy() {
-        if store.configuration.alwaysOccupyTouchBar {
-            createSystemTrayItem()
-            if let systemTrayItem {
-                TBSetControlStripPresence(systemTrayItem.identifier.rawValue, true)
-            }
-            startPresentationTimerIfNeeded()
-            present()
-        } else {
-            dismiss()
-            presentationTimer?.invalidate()
-            presentationTimer = nil
-            if let systemTrayItem {
-                TBSetControlStripPresence(systemTrayItem.identifier.rawValue, false)
-                TBSystemTrayRemoveItem(systemTrayItem)
-                self.systemTrayItem = nil
-            }
-        }
-    }
-
     func present() {
-        guard let touchBar else { return }
+        guard isStarted, let touchBar else { return }
         TBSetSystemModalShowsCloseBoxWhenFrontMost(!store.configuration.hideTouchBarCloseButton)
         TBPresentSystemModalTouchBar(touchBar, nil, true)
         if ProcessInfo.processInfo.environment["TOUCHINGBAR_DEBUG"] == "1" {
@@ -182,7 +160,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         guard presentationTimer == nil else { return }
         presentationTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                guard let self, self.store.configuration.alwaysOccupyTouchBar else { return }
+                guard let self, self.isStarted else { return }
                 guard self.touchBar?.isVisible != true else { return }
                 self.present()
             }
@@ -244,9 +222,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             NSLog("TouchingBar rebuilt preset=%@ identifiers=%@", activePreset.name, identifiers.map(\.rawValue).joined(separator: ", "))
         }
         updateTouchBarStatus()
-        if store.configuration.alwaysOccupyTouchBar {
-            present()
-        }
+        present()
     }
 
     func touchBar(_ touchBar: NSTouchBar, makeItemForIdentifier identifier: NSTouchBarItem.Identifier) -> NSTouchBarItem? {
