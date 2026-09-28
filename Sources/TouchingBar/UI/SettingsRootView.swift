@@ -3,23 +3,53 @@ import Combine
 import SwiftUI
 import TouchingBarCore
 
+private enum SettingsTab: String, CaseIterable, Identifiable {
+    case general
+    case presets
+    case pets
+    case integrations
+    case backup
+    case about
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .general: return "通用"
+        case .presets: return "Touch Bar 配置"
+        case .pets: return "宠物"
+        case .integrations: return "集成"
+        case .backup: return "备份与恢复"
+        case .about: return "关于"
+        }
+    }
+}
+
 struct SettingsRootView: View {
     @EnvironmentObject private var store: AppStore
+    @State private var selectedTab: SettingsTab = .general
 
     var body: some View {
-        TabView {
-            GeneralSettingsView()
-                .tabItem { Text("通用") }
-            PresetsSettingsView()
-                .tabItem { Text("Touch Bar 配置") }
-            PetsSettingsView()
-                .tabItem { Text("宠物") }
-            IntegrationsSettingsView()
-                .tabItem { Text("集成") }
-            BackupSettingsView()
-                .tabItem { Text("备份与恢复") }
-            AboutSettingsView()
-                .tabItem { Text("关于") }
+        VStack(spacing: 12) {
+            Picker("", selection: $selectedTab) {
+                ForEach(SettingsTab.allCases) { tab in
+                    Text(tab.title).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(maxWidth: 680)
+            .frame(maxWidth: .infinity)
+
+            ZStack {
+                tabContent(.general) { GeneralSettingsView() }
+                tabContent(.presets) { PresetsSettingsView() }
+                tabContent(.pets) { PetsSettingsView() }
+                tabContent(.integrations) { IntegrationsSettingsView() }
+                tabContent(.backup) { BackupSettingsView() }
+                tabContent(.about) { AboutSettingsView() }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .padding(16)
         .frame(minWidth: 760, minHeight: 520)
@@ -51,6 +81,18 @@ struct SettingsRootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.16), value: store.hasUnsavedChanges)
+    }
+
+    @ViewBuilder
+    private func tabContent<Content: View>(
+        _ tab: SettingsTab,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .opacity(selectedTab == tab ? 1 : 0)
+            .disabled(selectedTab != tab)
+            .accessibilityHidden(selectedTab != tab)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -261,6 +303,7 @@ struct GeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
         .onAppear {
             accessibilityTrusted = AXIsProcessTrusted()
             launchAtLogin.refresh()

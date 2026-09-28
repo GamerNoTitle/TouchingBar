@@ -65,6 +65,7 @@ struct BackupSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
         .onChange(of: passwordFocused) { focused in
             if !focused {
                 savePassword()

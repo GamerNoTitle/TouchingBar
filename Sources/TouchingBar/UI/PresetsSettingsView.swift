@@ -1144,6 +1144,7 @@ private struct ActionItemEditor: View {
             }
         }
         .formStyle(.columns)
+        .scrollContentBackground(.hidden)
         .padding(12)
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
         .onAppear {
@@ -1467,6 +1468,7 @@ private struct PetItemEditor: View {
             }
         }
         .formStyle(.columns)
+        .scrollContentBackground(.hidden)
         .padding(12)
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
         .onAppear {
@@ -1910,6 +1912,7 @@ private struct ContextItemEditor: View {
             }
         }
         .formStyle(.columns)
+        .scrollContentBackground(.hidden)
         .padding(12)
         .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
     }

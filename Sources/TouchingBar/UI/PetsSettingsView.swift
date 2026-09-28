@@ -86,6 +86,7 @@ struct PetsSettingsView: View {
                 }
             }
             .listStyle(.inset)
+            .scrollContentBackground(.hidden)
 
             Text("Codex 宠物使用 `pet.json` + 精灵图。官方格式是 8×9 格、每格 192×208；兼容带方向帧的 8×11 格式。安装会复制到 TouchingBar 的 Application Support/Pets。")
                 .font(.caption)
