@@ -12,7 +12,8 @@ struct IntegrationsSettingsView: View {
                 terminalIntegrationSection
                 developerHookExampleSection
             }
-            .padding(.vertical, 4)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 8)
             .groupBoxStyle(IntegrationGroupBoxStyle())
         }
         .onAppear {
