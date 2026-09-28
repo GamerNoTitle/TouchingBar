@@ -93,7 +93,8 @@ struct PetsSettingsView: View {
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
         }
-        .padding(4)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 8)
         .onAppear(perform: refresh)
         .sheet(isPresented: $showingGitHubInstaller) {
             GitHubPetInstallSheet { installed in
