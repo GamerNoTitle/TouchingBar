@@ -90,6 +90,16 @@ struct SettingsRootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.16), value: store.hasUnsavedChanges)
+        .onAppear {
+            if selectedTab == .backup {
+                store.refreshWebDAVCredentialPresence()
+            }
+        }
+        .onChange(of: selectedTab) { tab in
+            if tab == .backup {
+                store.refreshWebDAVCredentialPresence()
+            }
+        }
     }
 
     @ViewBuilder

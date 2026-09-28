@@ -7,6 +7,7 @@ struct BackupSettingsView: View {
     @State private var password = ""
     @State private var statusText: String?
     @State private var isWorking = false
+    @State private var showingClearConfirmation = false
     @FocusState private var passwordFocused: Bool
 
     var body: some View {
@@ -14,21 +15,17 @@ struct BackupSettingsView: View {
             Section {
                 TextField("服务器 URL", text: webDAVBinding(\.serverURL), prompt: Text("https://dav.example.com/remote.php/dav/files/me"))
                 TextField("用户名", text: webDAVBinding(\.username))
-                HStack {
-                    SecureField("密码", text: $password)
-                        .focused($passwordFocused)
-                        .onSubmit {
-                            passwordFocused = false
-                        }
-                    Button("清除已保存密码") {
-                        store.clearWebDAVPassword()
-                        password = ""
-                        statusText = "已清除已保存的 WebDAV 密码。"
-                    }
-                    .buttonStyle(.bordered)
+                SecureField(
+                    "密码",
+                    text: $password,
+                    prompt: Text(store.hasStoredWebDAVPassword ? "********" : "密码")
+                )
+                .focused($passwordFocused)
+                .onSubmit {
+                    passwordFocused = false
                 }
                 TextField("远程文件路径", text: webDAVBinding(\.remotePath))
-                Text("密码不会在启动时读取。点击上传或从 WebDAV 恢复时，才会从 macOS 钥匙串读取；输入新密码并失焦后会更新钥匙串。")
+                Text("输入新密码并失焦后会保存到 macOS 钥匙串；已保存时输入框显示 ********，除非重新输入，否则不会覆盖。密码不会在启动时读取。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } header: {
@@ -53,6 +50,11 @@ struct BackupSettingsView: View {
                     Button("从备份文件恢复…") {
                         importBackup()
                     }
+                    Spacer()
+                    Button("清除 WebDAV 凭据", role: .destructive) {
+                        showingClearConfirmation = true
+                    }
+                    .buttonStyle(.bordered)
                 }
 
                 if let statusText {
@@ -66,6 +68,16 @@ struct BackupSettingsView: View {
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
+        .alert("清除 WebDAV 凭据？", isPresented: $showingClearConfirmation) {
+            Button("取消", role: .cancel) {}
+            Button("清除", role: .destructive) {
+                store.clearWebDAVPassword()
+                password = ""
+                statusText = "已清除 WebDAV 凭据。"
+            }
+        } message: {
+            Text("这只会删除 macOS 钥匙串中的 WebDAV 密码，不会修改服务器地址、用户名或远程文件路径。")
+        }
         .onChange(of: passwordFocused) { focused in
             if !focused {
                 savePassword()
@@ -80,13 +92,20 @@ struct BackupSettingsView: View {
 
     private func savePassword() {
         guard !password.isEmpty else { return }
-        store.saveWebDAVPassword(password)
+        if store.saveWebDAVPassword(password) {
+            password = ""
+            statusText = "WebDAV 密码已保存到 macOS 钥匙串。"
+        }
     }
 
     private func resolvedPassword() throws -> String {
         if !password.isEmpty {
-            store.saveWebDAVPassword(password)
-            return password
+            let newPassword = password
+            guard store.saveWebDAVPassword(newPassword) else {
+                throw WebDAVPasswordError.saveFailed
+            }
+            password = ""
+            return newPassword
         }
         let storedPassword = store.loadWebDAVPassword()
         guard !storedPassword.isEmpty else {
@@ -172,8 +191,14 @@ struct BackupSettingsView: View {
 
 private enum WebDAVPasswordError: LocalizedError {
     case missing
+    case saveFailed
 
     var errorDescription: String? {
-        "请输入 WebDAV 密码，或先在上传前保存密码。"
+        switch self {
+        case .missing:
+            return "请输入 WebDAV 密码，或先在上传前保存密码。"
+        case .saveFailed:
+            return "WebDAV 密码保存失败。"
+        }
     }
 }

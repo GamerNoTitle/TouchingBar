@@ -622,11 +622,14 @@ struct TouchingBarChecks {
         )
         defer { try? keychain.deletePassword() }
 
+        try expect(!keychain.containsPassword(), "WebDAV password starts absent")
         try keychain.savePassword("secret")
+        try expect(keychain.containsPassword(), "WebDAV password presence is detected")
         try expect(keychain.loadPassword() == "secret", "WebDAV password is stored in Keychain")
         try keychain.savePassword("updated")
         try expect(keychain.loadPassword() == "updated", "WebDAV password updates in Keychain")
         try keychain.deletePassword()
+        try expect(!keychain.containsPassword(), "WebDAV password absence is detected")
         try expect(keychain.loadPassword() == nil, "WebDAV password removes from Keychain")
     }
 

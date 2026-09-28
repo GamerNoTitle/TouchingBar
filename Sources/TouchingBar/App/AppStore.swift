@@ -17,6 +17,7 @@ final class AppStore: ObservableObject {
     @Published var activeApplicationName: String?
     @Published var touchBarStatus = "Touch Bar：等待启动"
     @Published var systemMetrics = SystemMetricsSnapshot.empty
+    @Published private(set) var hasStoredWebDAVPassword = false
 
     let configurationStore: ConfigurationStore
     let backupService: BackupService
@@ -106,21 +107,31 @@ final class AppStore: ObservableObject {
         save()
     }
 
+    func refreshWebDAVCredentialPresence() {
+        hasStoredWebDAVPassword = webDAVKeychain.containsPassword()
+    }
+
     func loadWebDAVPassword() -> String {
         if let cachedWebDAVPassword {
+            hasStoredWebDAVPassword = !cachedWebDAVPassword.isEmpty
             return cachedWebDAVPassword
         }
         let password = webDAVKeychain.loadPassword() ?? ""
         cachedWebDAVPassword = password
+        hasStoredWebDAVPassword = !password.isEmpty
         return password
     }
 
-    func saveWebDAVPassword(_ password: String) {
+    @discardableResult
+    func saveWebDAVPassword(_ password: String) -> Bool {
         do {
             try webDAVKeychain.savePassword(password)
             cachedWebDAVPassword = password
+            hasStoredWebDAVPassword = !password.isEmpty
+            return true
         } catch {
             lastError = error.localizedDescription
+            return false
         }
     }
 
@@ -128,6 +139,7 @@ final class AppStore: ObservableObject {
         do {
             try webDAVKeychain.deletePassword()
             cachedWebDAVPassword = nil
+            hasStoredWebDAVPassword = false
         } catch {
             lastError = error.localizedDescription
         }

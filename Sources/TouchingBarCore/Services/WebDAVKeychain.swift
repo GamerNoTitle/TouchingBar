@@ -26,6 +26,22 @@ public struct WebDAVKeychain: Sendable {
         self.account = account
     }
 
+    /// Checks whether a password item exists without reading its secret data.
+    /// This avoids triggering the Keychain authentication prompt just to
+    /// decide whether the settings field should show a saved-password hint.
+    public func containsPassword() -> Bool {
+        let query: [CFString: Any] = [
+            kSecClass: kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: account,
+            kSecReturnAttributes: true,
+            kSecMatchLimit: kSecMatchLimitOne
+        ]
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        return status == errSecSuccess
+    }
+
     public func loadPassword() -> String? {
         let query: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
