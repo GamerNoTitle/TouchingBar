@@ -8,9 +8,12 @@ final class SettingsWindowController: NSWindowController {
         let hostingController = NSHostingController(rootView: rootView)
         let window = NSWindow(contentViewController: hostingController)
         window.title = "TouchingBar 设置"
-        window.setContentSize(NSSize(width: 920, height: 650))
-        window.minSize = NSSize(width: 780, height: 540)
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
+        window.setContentSize(NSSize(width: 1040, height: 700))
+        window.minSize = NSSize(width: 860, height: 560)
+        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.toolbarStyle = .unified
         window.isReleasedWhenClosed = false
         window.center()
         super.init(window: window)

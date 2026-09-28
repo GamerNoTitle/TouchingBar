@@ -23,6 +23,17 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         case .about: return "关于"
         }
     }
+
+    var symbolName: String {
+        switch self {
+        case .general: return "gearshape"
+        case .presets: return "rectangle.topthird.inset.filled"
+        case .pets: return "pawprint"
+        case .integrations: return "puzzlepiece.extension"
+        case .backup: return "externaldrive"
+        case .about: return "info.circle"
+        }
+    }
 }
 
 struct SettingsRootView: View {
@@ -30,17 +41,15 @@ struct SettingsRootView: View {
     @State private var selectedTab: SettingsTab = .general
 
     var body: some View {
-        VStack(spacing: 12) {
-            Picker("", selection: $selectedTab) {
-                ForEach(SettingsTab.allCases) { tab in
-                    Text(tab.title).tag(tab)
-                }
+        NavigationSplitView {
+            List(SettingsTab.allCases, selection: $selectedTab) { tab in
+                Label(tab.title, systemImage: tab.symbolName)
+                    .tag(tab)
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(maxWidth: 680)
-            .frame(maxWidth: .infinity)
-
+            .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(min: 190, ideal: 215, max: 260)
+            .navigationTitle("TouchingBar")
+        } detail: {
             ZStack {
                 tabContent(.general) { GeneralSettingsView() }
                 tabContent(.presets) { PresetsSettingsView() }
@@ -50,9 +59,9 @@ struct SettingsRootView: View {
                 tabContent(.about) { AboutSettingsView() }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .navigationTitle(selectedTab.title)
         }
-        .padding(16)
-        .frame(minWidth: 760, minHeight: 520)
+        .frame(minWidth: 840, minHeight: 560)
         .overlay(alignment: .bottomTrailing) {
             if store.hasUnsavedChanges {
                 HStack(spacing: 10) {
