@@ -184,6 +184,18 @@ struct TouchingBarChecks {
         let defaultConfiguration = AppConfiguration()
         try expect(defaultConfiguration.effectiveLyricsScrollLead == 0.1, "lyrics scroll ends 10% early by default")
         try expect(
+            LyricsScrollTiming.correctedProgress(sample: 0.42, estimated: 0.5, sameLine: true) == 0.5,
+            "a stale media-position sample cannot bounce a lyric backwards"
+        )
+        try expect(
+            LyricsScrollTiming.correctedProgress(sample: 0.1, estimated: 0.95, sameLine: true) == 0.1,
+            "a deliberate seek can restart the current lyric"
+        )
+        try expect(
+            LyricsScrollTiming.correctedProgress(sample: 0.02, estimated: 0.95, sameLine: false) == 0.02,
+            "a new lyric always starts at its own position"
+        )
+        try expect(
             abs(LyricsScrollTiming.fraction(progress: 0.82125, duration: 4, lead: 0.1) - 1) < 0.0001,
             "scroll reaches the end before the next lyric appears"
         )

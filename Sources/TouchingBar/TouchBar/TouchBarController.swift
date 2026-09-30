@@ -1037,6 +1037,9 @@ private final class ContextTouchBarScrollView: NSScrollView {
 private final class MarqueeTextField: NSView {
     var font: NSFont = .systemFont(ofSize: 10) {
         didSet {
+            guard font != oldValue else { return }
+            cachedTextWidth = nil
+            cachedDrawingText = nil
             invalidateIntrinsicContentSize()
             if let timelineProgress {
                 updateTimelineTarget(for: timelineProgress)
@@ -1045,10 +1048,16 @@ private final class MarqueeTextField: NSView {
         }
     }
     var textColor: NSColor = .labelColor {
-        didSet { needsDisplay = true }
+        didSet {
+            guard textColor != oldValue else { return }
+            cachedDrawingText = nil
+            needsDisplay = true
+        }
     }
 
     private var text = ""
+    private var cachedTextWidth: CGFloat?
+    private var cachedDrawingText: NSAttributedString?
     private var offset: CGFloat = 0
     private var timer: Timer?
     private var pauseUntil = Date.distantPast
@@ -1076,19 +1085,32 @@ private final class MarqueeTextField: NSView {
         let changed = newText != text
         if changed {
             text = newText
+            cachedTextWidth = nil
+            cachedDrawingText = nil
             toolTip = newText.isEmpty ? nil : newText
             offset = 0
         }
 
         if let progress {
             let clamped = min(1, max(0, progress))
-            lyricDuration = max(0.5, duration ?? 4)
-            lyricLead = min(0.5, max(0, lead))
             // The media position is polled less often than display frames. Advance
             // locally between polls, while each new sample corrects the estimate.
-            timelineProgress = clamped
-            progressUpdatedAt = Date.timeIntervalSinceReferenceDate
-            updateTimelineTarget(for: clamped)
+            let now = Date.timeIntervalSinceReferenceDate
+            let previousEstimate = timelineProgress.map {
+                min(1, $0 + max(0, now - progressUpdatedAt) / lyricDuration)
+            }
+            // A stale/rounded media sample must not pull the same lyric back.
+            // A seek backwards is still respected when its correction is large.
+            let corrected = LyricsScrollTiming.correctedProgress(
+                sample: clamped,
+                estimated: previousEstimate,
+                sameLine: !changed
+            )
+            lyricDuration = max(0.5, duration ?? 4)
+            lyricLead = min(0.5, max(0, lead))
+            timelineProgress = corrected
+            progressUpdatedAt = now
+            updateTimelineTarget(for: corrected)
             if changed {
                 offset = timelineTargetOffset
             }
@@ -1100,7 +1122,7 @@ private final class MarqueeTextField: NSView {
             }
             startAnimationIfNeeded()
         }
-        needsDisplay = true
+        if changed || progress == nil { needsDisplay = true }
     }
 
     override func viewDidMoveToWindow() {
@@ -1129,22 +1151,12 @@ private final class MarqueeTextField: NSView {
         defer { NSGraphicsContext.restoreGraphicsState() }
         NSBezierPath(rect: bounds).addClip()
 
-        let style = NSMutableParagraphStyle()
-        style.lineBreakMode = .byClipping
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: font,
-            .foregroundColor: textColor,
-            .paragraphStyle: style
-        ]
-        let size = (text as NSString).size(withAttributes: attributes)
-        let y = (bounds.height - size.height) / 2
-        (text as NSString).draw(at: NSPoint(x: offset, y: y), withAttributes: attributes)
+        let styled = drawingText
+        let y = (bounds.height - styled.size().height) / 2
+        styled.draw(at: NSPoint(x: offset, y: y))
 
         if timelineProgress == nil, textWidth > bounds.width + 1 {
-            (text as NSString).draw(
-                at: NSPoint(x: offset + textWidth + loopGap, y: y),
-                withAttributes: attributes
-            )
+            styled.draw(at: NSPoint(x: offset + textWidth + loopGap, y: y))
         }
     }
 
@@ -1223,8 +1235,23 @@ private final class MarqueeTextField: NSView {
     }
 
     private var textWidth: CGFloat {
-        guard !text.isEmpty else { return 0 }
-        return ceil((text as NSString).size(withAttributes: [.font: font]).width)
+        if let cachedTextWidth { return cachedTextWidth }
+        let width = text.isEmpty ? 0 : ceil((text as NSString).size(withAttributes: [.font: font]).width)
+        cachedTextWidth = width
+        return width
+    }
+
+    private var drawingText: NSAttributedString {
+        if let cachedDrawingText { return cachedDrawingText }
+        let style = NSMutableParagraphStyle()
+        style.lineBreakMode = .byClipping
+        let styled = NSAttributedString(string: text, attributes: [
+            .font: font,
+            .foregroundColor: textColor,
+            .paragraphStyle: style
+        ])
+        cachedDrawingText = styled
+        return styled
     }
 }
 
