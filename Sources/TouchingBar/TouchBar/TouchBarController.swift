@@ -85,10 +85,17 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             .sink { [weak self] snapshot in
                 guard let self, snapshot.hasAnyValue else { return }
                 self.systemMetricsSampleCount += 1
+                let previousKeys = self.knownMetricContextKeys
+                let wasReady = self.hasReceivedSystemMetrics
                 self.rememberAvailableMetricContextKeys(in: snapshot)
                 self.hasReceivedSystemMetrics = self.systemMetricsSampleCount >= 2
-                self.rebuildTouchBar()
-                self.updateContextValues()
+                // Metric values change every second, but only newly available items
+                // or the initial metrics preset need a dashboard rebuild. Leave
+                // lyrics and pet views untouched on ordinary samples.
+                if previousKeys != self.knownMetricContextKeys || (!wasReady && self.hasReceivedSystemMetrics) {
+                    self.rebuildTouchBar()
+                }
+                self.updateTimedContextValues()
             }
             .store(in: &cancellables)
         activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
@@ -702,6 +709,15 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         updateAgentSessions()
         if let latest = snapshot.messages.first {
             messageViews.forEach { $0.update(badges: badgeCounts, latestMessage: latest) }
+        }
+    }
+
+    private func updateTimedContextValues() {
+        for (id, view) in contextViews {
+            guard let configuration = contextConfigurations[id],
+                  let key = configuration.contextKey,
+                  Self.metricContextKeys.contains(key) || ["date", "time", "dateTime"].contains(key) else { continue }
+            updateContextView(view, configuration: configuration)
         }
     }
 
