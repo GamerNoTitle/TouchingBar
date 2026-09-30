@@ -10,6 +10,7 @@ struct TouchingBarChecks {
         try checkBuiltInPresets()
         try checkBackupRoundTrip()
         try checkConfigurationNormalization()
+        try checkLyricsScrollTiming()
         try checkCodexPetInstallation()
         try checkCodexPetGitHubReference()
         try checkImageComponentRoundTrip()
@@ -177,6 +178,33 @@ struct TouchingBarChecks {
             widthConfiguration.presets.first { $0.kind == .custom }?.items.first?.customWidth == 40,
             "custom item widths are clamped to a safe minimum"
         )
+    }
+
+    private static func checkLyricsScrollTiming() throws {
+        let defaultConfiguration = AppConfiguration()
+        try expect(defaultConfiguration.effectiveLyricsScrollLead == 0.1, "lyrics scroll ends 10% early by default")
+        try expect(
+            abs(LyricsScrollTiming.fraction(progress: 0.82125, duration: 4, lead: 0.1) - 1) < 0.0001,
+            "scroll reaches the end before the next lyric appears"
+        )
+        try expect(
+            LyricsScrollTiming.fraction(progress: 0.5, duration: 4, lead: 0) < 1,
+            "zero lead does not finish at the midpoint"
+        )
+        try expect(
+            LyricsScrollTiming.fraction(progress: 0.45625, duration: 4, lead: 0.5) == 1,
+            "50% lead finishes halfway through the visible interval"
+        )
+        var configuration = AppConfiguration()
+        configuration.effectiveLyricsScrollLead = 0.8
+        try expect(configuration.effectiveLyricsScrollLead == 0.5, "scroll lead is capped at 50%")
+        configuration.effectiveLyricsScrollLead = -0.1
+        try expect(configuration.effectiveLyricsScrollLead == 0, "scroll lead is floored at zero")
+        let legacy = try JSONEncoder().encode(AppConfiguration())
+        var object = try JSONSerialization.jsonObject(with: legacy) as! [String: Any]
+        object.removeValue(forKey: "lyricsScrollLead")
+        let decoded = try JSONDecoder().decode(AppConfiguration.self, from: JSONSerialization.data(withJSONObject: object))
+        try expect(decoded.effectiveLyricsScrollLead == 0.1, "older configurations retain the default scroll lead")
     }
 
     private static func checkCodexPetInstallation() throws {

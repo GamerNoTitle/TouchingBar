@@ -76,6 +76,10 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             .sink { [weak self] configuration in
                 self?.nowPlayingService.setLyricsOffset(configuration.effectiveLyricsOffset)
                 self?.rebuildTouchBar()
+                self?.updateContextValues()
+                if let snapshot = self?.latestNowPlaying {
+                    self?.nowPlayingViews.forEach { $0.update(snapshot, lead: configuration.effectiveLyricsScrollLead) }
+                }
             }
         runtimeCancellable = store.$runtime
             .receive(on: RunLoop.main)
@@ -126,7 +130,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         nowPlayingService.observe { [weak self] snapshot in
             self?.latestNowPlaying = snapshot
             self?.rebuildTouchBar()
-            self?.nowPlayingViews.forEach { $0.update(snapshot) }
+            self?.nowPlayingViews.forEach { $0.update(snapshot, lead: self?.store.configuration.effectiveLyricsScrollLead ?? 0.1) }
             self?.updateContextValues()
         }
         createSystemTrayItem()
@@ -496,7 +500,9 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 )
                 view.update(
                     pair: latestNowPlaying?.currentDualLineLyricPair,
-                    progress: latestNowPlaying?.currentLyricProgress
+                    progress: latestNowPlaying?.currentLyricProgress,
+                    duration: latestNowPlaying?.currentLyricDuration,
+                    lead: store.configuration.effectiveLyricsScrollLead
                 )
                 dualLineLyricViews[configuration.id] = view
                 contextConfigurations[configuration.id] = configuration
@@ -730,7 +736,9 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             guard contextConfigurations[id] != nil else { continue }
             view.update(
                 pair: latestNowPlaying?.currentDualLineLyricPair,
-                progress: latestNowPlaying?.currentLyricProgress
+                progress: latestNowPlaying?.currentLyricProgress,
+                duration: latestNowPlaying?.currentLyricDuration,
+                lead: store.configuration.effectiveLyricsScrollLead
             )
         }
     }
@@ -743,7 +751,9 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             history: history,
             range: store.systemMetrics.chartRange(for: key, history: history ?? []),
             color: chartColor(for: configuration),
-            lyricProgress: key == "lyric" ? latestNowPlaying?.currentLyricProgress : nil
+            lyricProgress: key == "lyric" ? latestNowPlaying?.currentLyricProgress : nil,
+            lyricDuration: key == "lyric" ? latestNowPlaying?.currentLyricDuration : nil,
+            lyricLead: store.configuration.effectiveLyricsScrollLead
         )
     }
 
@@ -1044,6 +1054,9 @@ private final class MarqueeTextField: NSView {
     private var pauseUntil = Date.distantPast
     private var timelineProgress: Double?
     private var timelineTargetOffset: CGFloat = 0
+    private var lyricDuration: TimeInterval = 4
+    private var lyricLead: Double = 0.1
+    private var progressUpdatedAt = Date.timeIntervalSinceReferenceDate
     private var lastFrameTime = Date.timeIntervalSinceReferenceDate
     private let loopGap: CGFloat = 18
     private let loopSpeed: CGFloat = 26
@@ -1054,7 +1067,12 @@ private final class MarqueeTextField: NSView {
         NSSize(width: NSView.noIntrinsicMetric, height: ceil(font.ascender - font.descender + 2))
     }
 
-    func updateText(_ newText: String, progress: Double? = nil) {
+    func updateText(
+        _ newText: String,
+        progress: Double? = nil,
+        duration: TimeInterval? = nil,
+        lead: Double = 0.1
+    ) {
         let changed = newText != text
         if changed {
             text = newText
@@ -1064,7 +1082,12 @@ private final class MarqueeTextField: NSView {
 
         if let progress {
             let clamped = min(1, max(0, progress))
+            lyricDuration = max(0.5, duration ?? 4)
+            lyricLead = min(0.5, max(0, lead))
+            // The media position is polled less often than display frames. Advance
+            // locally between polls, while each new sample corrects the estimate.
             timelineProgress = clamped
+            progressUpdatedAt = Date.timeIntervalSinceReferenceDate
             updateTimelineTarget(for: clamped)
             if changed {
                 offset = timelineTargetOffset
@@ -1139,7 +1162,11 @@ private final class MarqueeTextField: NSView {
 
     private func updateTimelineTarget(for progress: Double) {
         let overflow = max(0, textWidth - bounds.width)
-        timelineTargetOffset = -overflow * CGFloat(min(1, max(0, progress)))
+        timelineTargetOffset = -overflow * CGFloat(LyricsScrollTiming.fraction(
+            progress: progress,
+            duration: lyricDuration,
+            lead: lyricLead
+        ))
     }
 
     private func startAnimationIfNeeded() {
@@ -1147,12 +1174,8 @@ private final class MarqueeTextField: NSView {
             stopAnimation()
             return
         }
-        if timelineProgress == nil {
-            // Loop mode always animates while the text is wider than the view.
-        } else if abs(timelineTargetOffset - offset) < 0.25 {
-            stopAnimation()
-            return
-        }
+        // Timed lyrics keep ticking between media-position polls, even when
+        // they have momentarily reached the last reported progress target.
         guard timer == nil else { return }
 
         lastFrameTime = Date.timeIntervalSinceReferenceDate
@@ -1173,15 +1196,15 @@ private final class MarqueeTextField: NSView {
         let deltaTime = min(0.1, max(0.001, now - lastFrameTime))
         lastFrameTime = now
 
-        if timelineProgress != nil {
-            let difference = timelineTargetOffset - offset
-            if abs(difference) < 0.15 {
+        if let timelineProgress {
+            let estimatedProgress = min(1, timelineProgress + max(0, now - progressUpdatedAt) / lyricDuration)
+            updateTimelineTarget(for: estimatedProgress)
+            if abs(timelineTargetOffset - offset) >= 0.01 {
+                // Follow elapsed media time directly instead of easing toward a
+                // half-second-old target; long lines otherwise lag behind the song.
                 offset = timelineTargetOffset
-                stopAnimation()
-            } else {
-                offset += difference * min(1, deltaTime * 14)
+                needsDisplay = true
             }
-            needsDisplay = true
             return
         }
 
@@ -1215,6 +1238,8 @@ private final class DualLineLyricsTouchBarView: NSView {
     private var currentOriginal = ""
     private var currentSecondary = ""
     private var lyricProgress: Double?
+    private var lyricDuration: TimeInterval?
+    private var lyricLead: Double = 0.1
     private var transitionTimer: Timer?
     private var transitionStartedAt = Date.timeIntervalSinceReferenceDate
     private let transitionDuration: TimeInterval = 0.46
@@ -1253,9 +1278,13 @@ private final class DualLineLyricsTouchBarView: NSView {
 
     func update(
         pair: (original: String, secondary: String?)?,
-        progress: Double?
+        progress: Double?,
+        duration: TimeInterval?,
+        lead: Double
     ) {
         lyricProgress = progress
+        lyricDuration = duration
+        lyricLead = lead
         let original = pair?.original ?? ""
         let secondary = pair?.secondary ?? ""
 
@@ -1275,8 +1304,8 @@ private final class DualLineLyricsTouchBarView: NSView {
         }
 
         guard original != currentOriginal || secondary != currentSecondary else {
-            topLabel.updateText(original, progress: progress)
-            bottomLabel.updateText(secondary, progress: progress)
+            topLabel.updateText(original, progress: progress, duration: duration, lead: lead)
+            bottomLabel.updateText(secondary, progress: progress, duration: duration, lead: lead)
             return
         }
 
@@ -1318,13 +1347,13 @@ private final class DualLineLyricsTouchBarView: NSView {
         outgoingLabel.isHidden = true
         outgoingLabel.alphaValue = 0
 
-        topLabel.updateText(original, progress: lyricProgress)
+        topLabel.updateText(original, progress: lyricProgress, duration: lyricDuration, lead: lyricLead)
         topLabel.font = topFont
         topLabel.textColor = .labelColor
         topLabel.frame = topFrame
         topLabel.alphaValue = 1
 
-        bottomLabel.updateText(secondary, progress: lyricProgress)
+        bottomLabel.updateText(secondary, progress: lyricProgress, duration: lyricDuration, lead: lyricLead)
         bottomLabel.font = bottomFont
         bottomLabel.textColor = .secondaryLabelColor
         bottomLabel.frame = bottomFrame
@@ -1344,20 +1373,20 @@ private final class DualLineLyricsTouchBarView: NSView {
     }
 
     private func startTransition(to original: String, secondary: String) {
-        outgoingLabel.updateText(currentOriginal, progress: lyricProgress)
+        outgoingLabel.updateText(currentOriginal, progress: lyricProgress, duration: lyricDuration, lead: lyricLead)
         outgoingLabel.font = topFont
         outgoingLabel.textColor = .labelColor
         outgoingLabel.frame = topFrame
         outgoingLabel.alphaValue = 1
         outgoingLabel.isHidden = false
 
-        topLabel.updateText(original, progress: lyricProgress)
+        topLabel.updateText(original, progress: lyricProgress, duration: lyricDuration, lead: lyricLead)
         topLabel.font = bottomFont
         topLabel.textColor = .secondaryLabelColor
         topLabel.frame = bottomFrame
         topLabel.alphaValue = 1
 
-        bottomLabel.updateText(secondary, progress: lyricProgress)
+        bottomLabel.updateText(secondary, progress: lyricProgress, duration: lyricDuration, lead: lyricLead)
         bottomLabel.font = bottomFont
         bottomLabel.textColor = .secondaryLabelColor
         bottomLabel.frame = incomingBottomFrame
@@ -1689,7 +1718,9 @@ private final class ContextTouchBarView: NSView {
         history: [Double]?,
         range: ClosedRange<Double>?,
         color: NSColor,
-        lyricProgress: Double? = nil
+        lyricProgress: Double? = nil,
+        lyricDuration: TimeInterval? = nil,
+        lyricLead: Double = 0.1
     ) {
         if let history, history.count >= 2 {
             titleLabel.stringValue = "\(baseTitle)  \(value)"
@@ -1698,7 +1729,7 @@ private final class ContextTouchBarView: NSView {
             sparkline.update(values: history, range: range, color: color)
         } else {
             titleLabel.stringValue = baseTitle.uppercased()
-            valueLabel.updateText(value, progress: lyricProgress)
+            valueLabel.updateText(value, progress: lyricProgress, duration: lyricDuration, lead: lyricLead)
             valueLabel.isHidden = false
             sparkline.isHidden = true
         }
@@ -1900,11 +1931,13 @@ private final class NowPlayingTouchBarView: NSView {
         NSSize(width: preferredWidth, height: 30)
     }
 
-    func update(_ snapshot: NowPlayingSnapshot) {
+    func update(_ snapshot: NowPlayingSnapshot, lead: Double) {
         titleLabel.updateText(snapshot.compactTitle)
         lyricsLabel.updateText(
             snapshot.currentLyricLine ?? snapshot.album,
-            progress: snapshot.currentLyricProgress
+            progress: snapshot.currentLyricProgress,
+            duration: snapshot.currentLyricDuration,
+            lead: lead
         )
     }
 }

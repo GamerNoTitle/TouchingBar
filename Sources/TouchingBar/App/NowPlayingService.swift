@@ -95,25 +95,24 @@ struct NowPlayingSnapshot: Equatable {
             .joined(separator: " · ")
     }
 
-    var currentLyricProgress: Double? {
+    var currentLyricProgress: Double? { currentLyricTiming?.progress }
+    var currentLyricDuration: TimeInterval? { currentLyricTiming?.duration }
+
+    private var currentLyricTiming: (progress: Double, duration: TimeInterval)? {
         let effectivePosition = position - lyricsOffset
+        let times: [TimeInterval]
         if let lyricDocument, !lyricDocument.lines.isEmpty {
-            let lines = lyricDocument.lines
-            guard let index = lines.lastIndex(where: { $0.time <= effectivePosition + 0.35 }) else {
-                return nil
-            }
-            let start = lines[index].time
-            let end = index + 1 < lines.count ? lines[index + 1].time : start + 4
-            return min(1, max(0, (effectivePosition - start) / max(0.5, end - start)))
-        }
-        guard let lyrics, !lyrics.isEmpty else { return nil }
-        let lines = timedLyrics(from: lyrics)
-        guard let index = lines.lastIndex(where: { $0.time <= effectivePosition + 0.35 }) else {
+            times = lyricDocument.lines.map(\.time)
+        } else if let lyrics {
+            times = timedLyrics(from: lyrics).map(\.time)
+        } else {
             return nil
         }
-        let start = lines[index].time
-        let end = index + 1 < lines.count ? lines[index + 1].time : start + 4
-        return min(1, max(0, (effectivePosition - start) / max(0.5, end - start)))
+        guard let index = times.lastIndex(where: { $0 <= effectivePosition + 0.35 }) else { return nil }
+        let start = times[index]
+        let end = index + 1 < times.count ? times[index + 1] : start + 4
+        let duration = max(0.5, end - start)
+        return (min(1, max(0, (effectivePosition - start) / duration)), duration)
     }
 
     private func nonEmpty(_ value: String?) -> String? {

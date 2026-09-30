@@ -281,6 +281,25 @@ struct GeneralSettingsView: View {
                         .monospacedDigit()
                         .frame(width: 72, alignment: .trailing)
                 }
+                HStack {
+                    Text("歌词滚动提前完成")
+                    Slider(
+                        value: Binding(
+                            get: { store.configuration.effectiveLyricsScrollLead },
+                            set: { value in
+                                store.updateConfiguration { $0.effectiveLyricsScrollLead = value }
+                            }
+                        ),
+                        in: 0...0.5,
+                        step: 0.01
+                    )
+                    Text(String(format: "%.0f%%", store.configuration.effectiveLyricsScrollLead * 100))
+                        .monospacedDigit()
+                        .frame(width: 52, alignment: .trailing)
+                }
+                Text("默认提前当前句时长的 10% 滚动到末尾；可调范围为 0%–50%。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
                 Text("正值会让歌词提前显示，负值会让歌词延后显示，对所有歌曲生效。")
                     .font(.callout)
                     .foregroundStyle(.secondary)

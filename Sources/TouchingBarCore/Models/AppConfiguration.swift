@@ -56,6 +56,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
     public var messages: MessageSettings
     public var webDAV: WebDAVSettings
     public var lyricsOffset: Double?
+    public var lyricsScrollLead: Double?
     public var metricsHistorySeconds: Int?
     public var showAgentNotifications: Bool?
     public var presets: [TouchBarPreset]
@@ -72,6 +73,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         messages: MessageSettings = MessageSettings(),
         webDAV: WebDAVSettings = WebDAVSettings(),
         lyricsOffset: Double = 0,
+        lyricsScrollLead: Double = 0.1,
         metricsHistorySeconds: Int = 30,
         showAgentNotifications: Bool = true,
         presets: [TouchBarPreset] = BuiltInPresets.make()
@@ -87,6 +89,7 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
         self.messages = messages
         self.webDAV = webDAV
         self.lyricsOffset = lyricsOffset
+        self.lyricsScrollLead = lyricsScrollLead
         self.metricsHistorySeconds = metricsHistorySeconds
         self.showAgentNotifications = showAgentNotifications
         self.presets = presets
@@ -121,6 +124,12 @@ public struct AppConfiguration: Codable, Equatable, Sendable {
     public var effectiveLyricsOffset: Double {
         get { lyricsOffset ?? 0 }
         set { lyricsOffset = max(-10, min(10, newValue)) }
+    }
+
+    /// Fraction of a lyric line reserved after the marquee has reached its end.
+    public var effectiveLyricsScrollLead: Double {
+        get { min(0.5, max(0, lyricsScrollLead ?? 0.1)) }
+        set { lyricsScrollLead = min(0.5, max(0, newValue)) }
     }
 
     public var activePreset: TouchBarPreset? {
