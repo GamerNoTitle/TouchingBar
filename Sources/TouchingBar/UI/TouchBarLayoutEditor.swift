@@ -125,6 +125,19 @@ struct TouchBarLayoutEditor: View {
             } else {
                 Image(systemName: "pawprint.fill").foregroundStyle(.pink).font(.title3)
             }
+        } else if item.presentation == .context && isChartMetric(item) {
+            VStack(alignment: .leading, spacing: 2) {
+                if item.showsLabel {
+                    Text("\(item.label)  \(sampleValue(item))")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                }
+                PreviewSparkline()
+                    .stroke(chartColor(item), style: StrokeStyle(lineWidth: 1.2, lineCap: .round, lineJoin: .round))
+                    .frame(height: 12)
+            }
+            .padding(.horizontal, 4)
         } else if item.presentation == .context {
             VStack(alignment: .leading, spacing: 2) {
                 if item.showsLabel && !item.dualLineLyrics {
@@ -142,6 +155,27 @@ struct TouchBarLayoutEditor: View {
                 if item.symbolName == nil || preset.kind == .functionKeys { Text(item.label) }
             }
             .font(.system(size: 10)).foregroundStyle(.white).lineLimit(1).padding(3)
+        }
+    }
+
+    private func isChartMetric(_ item: TouchBarItemConfiguration) -> Bool {
+        ["cpu", "gpu", "memory", "disk", "cpuTemperature", "fanRPM",
+         "networkDownload", "networkUpload", "battery", "batteryPower", "batteryTime"]
+            .contains(item.contextKey ?? "")
+    }
+
+    private func chartColor(_ item: TouchBarItemConfiguration) -> Color {
+        if let hex = item.chartColorHex, let color = NSColor(hexRGB: hex) { return Color(nsColor: color) }
+        switch item.contextKey {
+        case "cpu", "battery": return Color(nsColor: .systemGreen)
+        case "gpu": return Color(nsColor: .systemPurple)
+        case "memory", "batteryTime": return Color(nsColor: .systemBlue)
+        case "disk": return Color(nsColor: .systemTeal)
+        case "cpuTemperature", "batteryPower": return Color(nsColor: .systemOrange)
+        case "fanRPM": return Color(nsColor: .systemPink)
+        case "networkDownload": return Color(nsColor: .systemCyan)
+        case "networkUpload": return Color(nsColor: .systemYellow)
+        default: return .accentColor
         }
     }
 
@@ -168,6 +202,10 @@ struct TouchBarLayoutEditor: View {
         case "dateTime": return "9月25日 12:34:56"
         case "networkDownload": return "↓ 2.4 MB/s"
         case "networkUpload": return "↑ 128 KB/s"
+        case "cpuTemperature": return "56.2°C"
+        case "fanRPM": return "2100 RPM"
+        case "batteryPower": return "8.4 W"
+        case "batteryTime": return "剩余 3h12m"
         case "path": return "~/Projects/TouchingBar"
         case "branch": return "master"
         default: return "42%"
@@ -192,5 +230,19 @@ struct TouchBarLayoutEditor: View {
             }
         }
         return true
+    }
+}
+
+/// Stable synthetic samples, so the layout preview does not run another sampler.
+private struct PreviewSparkline: Shape {
+    func path(in rect: CGRect) -> Path {
+        let values: [CGFloat] = [0.3, 0.35, 0.28, 0.5, 0.42, 0.46, 0.75, 0.62, 0.55, 0.7, 0.48, 0.52]
+        var path = Path()
+        for (index, value) in values.enumerated() {
+            let point = CGPoint(x: rect.minX + rect.width * CGFloat(index) / CGFloat(values.count - 1),
+                                y: rect.maxY - value * rect.height)
+            if index == 0 { path.move(to: point) } else { path.addLine(to: point) }
+        }
+        return path
     }
 }
