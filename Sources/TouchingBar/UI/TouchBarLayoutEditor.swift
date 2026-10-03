@@ -12,17 +12,27 @@ struct TouchBarLayoutEditor: View {
     @State private var dragToken: UUID?
     @State private var resizeStart: CGFloat?
     @State private var draftWidth: CGFloat?
+    @State private var previewIsPlaying = true
 
     private var canResize: Bool {
         [.components, .developerContext].contains(preset.content)
     }
+    private var showsNowPlayingPanel: Bool {
+        preset.content == .nowPlaying && (!preset.effectiveHideWhenNotPlaying || previewIsPlaying)
+    }
     private var visibleItems: [TouchBarItemConfiguration] {
-        [.agentContext, .unreadMessages].contains(preset.content) ? [] : preset.items.filter { !$0.isHidden }
+        if [.agentContext, .unreadMessages].contains(preset.content) { return [] }
+        if preset.content == .nowPlaying && !showsNowPlayingPanel { return [] }
+        return preset.items.filter { item in
+            if item.isHidden || (item.hideWhenPlaying && previewIsPlaying) { return false }
+            let musicRelated = item.action.kind == .media || ["nowPlaying", "lyric"].contains(item.contextKey ?? "")
+            return !(item.hideWhenNotPlaying && musicRelated && !previewIsPlaying)
+        }
     }
     private var totalWidth: CGFloat {
         visibleItems.reduce(0) { $0 + TouchBarLayoutMetrics.itemWidth($1, preset: preset) }
             + CGFloat(max(0, visibleItems.count - 1)) * (canResize ? 4 : 1)
-            + (preset.content == .nowPlaying ? TouchBarLayoutMetrics.lyricsWidth : 0)
+            + (showsNowPlayingPanel ? TouchBarLayoutMetrics.lyricsWidth : 0)
     }
 
     var body: some View {
@@ -31,6 +41,10 @@ struct TouchBarLayoutEditor: View {
                 Label("Touch Bar 布局预览", systemImage: "rectangle.topthird.inset.filled")
                     .font(.headline)
                 Spacer()
+                Toggle("播放中", isOn: $previewIsPlaying)
+                    .toggleStyle(.switch)
+                    .fixedSize()
+                    .help("仅模拟预览中的播放状态，不控制真实播放器")
                 Text("\(Int(totalWidth)) / \(Int(TouchBarLayoutMetrics.dashboardWidth)) pt")
                     .font(.caption.monospacedDigit())
             }
@@ -45,7 +59,7 @@ struct TouchBarLayoutEditor: View {
                         if [.agentContext, .unreadMessages].contains(preset.content) {
                             Text("动态内容面板").foregroundStyle(.white).font(.system(size: 10))
                         }
-                        if preset.content == .nowPlaying {
+                        if showsNowPlayingPanel {
                             Text("歌曲名称 · 歌词预览")
                                 .foregroundStyle(.white).font(.system(size: 10))
                                 .frame(width: TouchBarLayoutMetrics.lyricsWidth, height: 30)
@@ -80,7 +94,7 @@ struct TouchBarLayoutEditor: View {
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text("2 倍等比编辑预览，可横向滚动；白色纵向虚线标记 Touch Bar 显示边界。内容为示例；隐藏组件不占宽度，条件隐藏的组件仍显示供编辑。")
+            Text("2 倍等比编辑预览，可横向滚动；白色纵向虚线标记 Touch Bar 显示边界。内容为示例；播放开关仅模拟预览，隐藏条件随播放状态生效。")
                 .font(.caption2).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
