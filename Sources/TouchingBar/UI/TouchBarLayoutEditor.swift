@@ -35,39 +35,44 @@ struct TouchBarLayoutEditor: View {
                     .font(.caption.monospacedDigit())
             }
             GeometryReader { geometry in
-                let scale = min(1, max(0.25, (geometry.size.width - 16) / TouchBarLayoutMetrics.dashboardWidth))
+                let scale = min(1, max(0.01, geometry.size.width / TouchBarLayoutMetrics.displayWidth))
                 ScrollView(.horizontal) {
-                    HStack(spacing: (canResize ? 4 : 1) * scale) {
+                    HStack(spacing: canResize ? 4 : 1) {
                         ForEach(visibleItems) { item in
                             previewItem(item, scale: scale)
                         }
                         if [.agentContext, .unreadMessages].contains(preset.content) {
-                            Text("动态内容面板（不支持组件布局编辑）").foregroundStyle(.white).padding()
+                            Text("动态内容面板").foregroundStyle(.white).font(.system(size: 10))
                         }
                         if preset.content == .nowPlaying {
                             Text("歌曲名称 · 歌词预览")
-                                .foregroundStyle(.white)
-                                .frame(width: TouchBarLayoutMetrics.lyricsWidth * scale, height: 44)
+                                .foregroundStyle(.white).font(.system(size: 10))
+                                .frame(width: TouchBarLayoutMetrics.lyricsWidth, height: 30)
                         }
-                        Color.clear.frame(width: 18, height: 44)
+                        Color.clear.frame(width: 18, height: 30)
                             .onDrop(of: [UTType.text], isTargeted: nil) { providers in
                                 drop(providers, before: nil)
                             }
                     }
-                    .padding(8)
-                    .frame(minWidth: TouchBarLayoutMetrics.dashboardWidth * scale, alignment: .leading)
+                    .frame(minWidth: TouchBarLayoutMetrics.dashboardWidth, alignment: .leading)
                 }
-                .frame(width: min(geometry.size.width, TouchBarLayoutMetrics.dashboardWidth * scale + 16))
-                .background(.black, in: RoundedRectangle(cornerRadius: 10))
+                .scrollIndicators(.hidden)
+                .frame(width: TouchBarLayoutMetrics.displayWidth, height: TouchBarLayoutMetrics.displayHeight)
+                .background(.black)
+                .clipShape(RoundedRectangle(cornerRadius: 3))
+                .scaleEffect(scale, anchor: .topLeading)
+                .frame(width: TouchBarLayoutMetrics.displayWidth * scale,
+                       height: TouchBarLayoutMetrics.displayHeight * scale, alignment: .topLeading)
             }
-            .frame(height: 70)
+            .aspectRatio(TouchBarLayoutMetrics.displayWidth / TouchBarLayoutMetrics.displayHeight, contentMode: .fit)
+            .frame(maxWidth: TouchBarLayoutMetrics.displayWidth)
             Text(totalWidth > TouchBarLayoutMetrics.dashboardWidth
                  ? "内容超出可视宽度，预览可横向滚动。点击选择 · 拖动排序\(canResize ? " · 拖动右侧蓝色边缘调宽" : "；此内容类型使用固定宽度")"
                  : "点击选择 · 拖动排序\(canResize ? " · 拖动右侧蓝色边缘调宽" : "；此内容类型使用固定宽度")")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text("示意预览：使用真实宽度比例；歌词、网络和宠物内容为示例。隐藏组件不占宽度，按播放状态/数据可用性隐藏的组件仍显示供编辑。")
+            Text("等比预览：1004 × 30 pt（约 33.47∶1），文字与图表一同缩放。内容为示例；隐藏组件不占宽度，条件隐藏的组件仍显示供编辑。")
                 .font(.caption2).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -110,7 +115,7 @@ struct TouchBarLayoutEditor: View {
                         })
             }
         }
-        .frame(width: width * scale, height: 44)
+        .frame(width: width, height: TouchBarLayoutMetrics.displayHeight)
         .background(selected ? Color.blue.opacity(0.22) : Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 5))
         .overlay(RoundedRectangle(cornerRadius: 5).stroke(selected ? Color.blue : Color.white.opacity(0.12), lineWidth: selected ? 2 : 1))
         .help("\(item.label) · \(Int(width)) pt")

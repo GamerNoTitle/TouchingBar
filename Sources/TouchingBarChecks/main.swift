@@ -188,6 +188,7 @@ struct TouchingBarChecks {
     }
 
     private static func checkVisualLayoutEditing() throws {
+        try expect(abs(TouchBarLayoutMetrics.displayWidth / TouchBarLayoutMetrics.displayHeight - 2008.0 / 60.0) < 0.0001, "preview aspect ratio matches user Touch Bar screenshots")
         try expect(NetworkStatusSnapshot.normalizedProbeHost("-c 100") == nil, "ping options are rejected")
         try expect(NetworkStatusSnapshot.normalizedProbeHost("https://example.com") == nil, "probe accepts hosts not URLs")
         try expect(NetworkStatusSnapshot.empty.value(for: "networkLatency") == "未启用探测", "blank target never enables probing")

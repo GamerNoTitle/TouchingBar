@@ -8,6 +8,9 @@ public enum TouchBarLayoutMetrics {
     public static let lyricsWidth: CGFloat = 760
     public static let dashboardSpacing: CGFloat = 1
     public static let dashboardWidth: CGFloat = 986
+    // User screenshots are 2008 x 60 pixels at 2x backing scale.
+    public static let displayWidth: CGFloat = 1004
+    public static let displayHeight: CGFloat = 30
 
     /// Shared by the hardware renderer and settings preview.
     public static func itemWidth(_ item: TouchBarItemConfiguration, preset: TouchBarPreset) -> CGFloat {
