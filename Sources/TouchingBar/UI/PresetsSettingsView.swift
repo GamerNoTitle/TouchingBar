@@ -9,83 +9,91 @@ struct PresetsSettingsView: View {
     @State private var selectedItemID: UUID?
 
     var body: some View {
-        HSplitView {
-            VStack(spacing: 8) {
-                List(store.configuration.presets, selection: $selectedPresetID) { preset in
-                    HStack {
-                        Image(systemName: symbol(for: preset.kind))
-                            .frame(width: 18)
-                        Text(preset.name)
-                        Spacer()
-                        if preset.id == store.configuration.activePresetID {
-                            Circle()
-                                .fill(.green)
-                                .frame(width: 7, height: 7)
-                        }
-                    }
-                    .tag(preset.id)
-                }
-                .onChange(of: selectedPresetID) { _ in selectedItemID = nil }
-
-                HStack {
-                    Menu {
-                        Button("新建自定义配置") {
-                            store.addPreset()
-                            selectedPresetID = store.configuration.activePresetID
-                        }
-                        Divider()
-                        let missingKinds = BuiltInPresets.restorableKinds.filter { kind in
-                            !store.configuration.presets.contains(where: { $0.kind == kind })
-                        }
-                        if missingKinds.isEmpty {
-                            Text("所有内置预设都已恢复")
-                        } else {
-                            ForEach(missingKinds, id: \.self) { kind in
-                                Button("恢复 \(BuiltInPresets.title(for: kind))") {
-                                    store.restoreBuiltInPreset(kind: kind)
-                                    selectedPresetID = store.configuration.activePresetID
-                                }
+        GeometryReader { geometry in
+            // Explicitly allocate the two columns from the actual detail viewport.
+            // NSSplitView otherwise negotiates an oversized intrinsic width with
+            // long preview captions, pushing the outer sidebar off screen.
+            HStack(spacing: 0) {
+                VStack(spacing: 8) {
+                    List(store.configuration.presets, selection: $selectedPresetID) { preset in
+                        HStack {
+                            Image(systemName: symbol(for: preset.kind))
+                                .frame(width: 18)
+                            Text(preset.name)
+                            Spacer()
+                            if preset.id == store.configuration.activePresetID {
+                                Circle()
+                                    .fill(.green)
+                                    .frame(width: 7, height: 7)
                             }
                         }
-                    } label: {
-                        Image(systemName: "plus")
+                        .tag(preset.id)
                     }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
-                    Button {
-                        guard let selectedPresetID else { return }
-                        store.duplicatePreset(store.configuration.presets.first(where: { $0.id == selectedPresetID }) ?? store.configuration.presets[0])
-                        self.selectedPresetID = store.configuration.activePresetID
-                    } label: {
-                        Image(systemName: "plus.square.on.square")
-                    }
-                    .disabled(selectedPresetID == nil)
-                    Button {
-                        guard let selectedPresetID else { return }
-                        store.deletePreset(id: selectedPresetID)
-                        self.selectedPresetID = store.configuration.activePresetID
-                    } label: {
-                        Image(systemName: "trash")
-                    }
-                    .disabled(selectedPresetID == nil)
-                    Spacer()
-                }
-                .buttonStyle(.borderless)
-            }
-            .padding(8)
-            .frame(minWidth: 210, idealWidth: 240)
+                    .onChange(of: selectedPresetID) { _ in selectedItemID = nil }
 
-            if let selectedPresetID,
-               let preset = store.configuration.presets.first(where: { $0.id == selectedPresetID }) {
-                PresetDetailView(presetID: preset.id, selectedItemID: $selectedItemID)
-                    .frame(minWidth: 500, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            } else {
-                SettingsEmptyState(
-                    title: "选择一个配置",
-                    systemImage: "rectangle.topthird.inset.filled"
-                )
-                .frame(minWidth: 500, maxWidth: .infinity, maxHeight: .infinity)
+                    HStack {
+                        Menu {
+                            Button("新建自定义配置") {
+                                store.addPreset()
+                                selectedPresetID = store.configuration.activePresetID
+                            }
+                            Divider()
+                            let missingKinds = BuiltInPresets.restorableKinds.filter { kind in
+                                !store.configuration.presets.contains(where: { $0.kind == kind })
+                            }
+                            if missingKinds.isEmpty {
+                                Text("所有内置预设都已恢复")
+                            } else {
+                                ForEach(missingKinds, id: \.self) { kind in
+                                    Button("恢复 \(BuiltInPresets.title(for: kind))") {
+                                        store.restoreBuiltInPreset(kind: kind)
+                                        selectedPresetID = store.configuration.activePresetID
+                                    }
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "plus")
+                        }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
+                        Button {
+                            guard let selectedPresetID else { return }
+                            store.duplicatePreset(store.configuration.presets.first(where: { $0.id == selectedPresetID }) ?? store.configuration.presets[0])
+                            self.selectedPresetID = store.configuration.activePresetID
+                        } label: {
+                            Image(systemName: "plus.square.on.square")
+                        }
+                        .disabled(selectedPresetID == nil)
+                        Button {
+                            guard let selectedPresetID else { return }
+                            store.deletePreset(id: selectedPresetID)
+                            self.selectedPresetID = store.configuration.activePresetID
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .disabled(selectedPresetID == nil)
+                        Spacer()
+                    }
+                    .buttonStyle(.borderless)
+                }
+                .padding(8)
+                .frame(width: min(210, geometry.size.width * 0.3))
+
+                Divider()
+
+                if let selectedPresetID,
+                   let preset = store.configuration.presets.first(where: { $0.id == selectedPresetID }) {
+                    PresetDetailView(presetID: preset.id, selectedItemID: $selectedItemID)
+                        .frame(width: max(0, geometry.size.width - min(210, geometry.size.width * 0.3) - 1), height: geometry.size.height, alignment: .topLeading)
+                } else {
+                    SettingsEmptyState(
+                        title: "选择一个配置",
+                        systemImage: "rectangle.topthird.inset.filled"
+                    )
+                    .frame(width: max(0, geometry.size.width - min(210, geometry.size.width * 0.3) - 1), height: geometry.size.height)
+                }
             }
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .leading)
         }
         .onAppear {
             selectedPresetID = store.configuration.activePresetID
@@ -117,64 +125,69 @@ private struct PresetDetailView: View {
 
     var body: some View {
         if let preset {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(preset.isBuiltIn ? "内置配置" : "自定义配置")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        TextField("配置名称", text: nameBinding(preset))
-                            .font(.title2.bold())
-                            .textFieldStyle(.plain)
-                    }
-                    Spacer()
-                    Button(preset.id == store.configuration.activePresetID ? "正在使用" : "使用此配置") {
-                        store.selectPreset(id: preset.id)
-                    }
-                    .disabled(preset.id == store.configuration.activePresetID)
-                }
-
-                if preset.kind == .custom {
-                    Label("自由组件 · 每个组件都是独立的 Touch Bar 项目", systemImage: "slider.horizontal.3")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-                } else {
+            GeometryReader { geometry in
+                ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 14) {
                     HStack {
-                        Picker("内容类型", selection: contentBinding(preset)) {
-                            ForEach(supportedContents, id: \.self) { content in
-                                Text(contentTitle(content)).tag(content)
-                            }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(preset.isBuiltIn ? "内置配置" : "自定义配置")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            TextField("配置名称", text: nameBinding(preset))
+                                .font(.title2.bold())
+                                .textFieldStyle(.plain)
                         }
-                        .frame(maxWidth: 300)
+                        Spacer()
+                        Button(preset.id == store.configuration.activePresetID ? "正在使用" : "使用此配置") {
+                            store.selectPreset(id: preset.id)
+                        }
+                        .disabled(preset.id == store.configuration.activePresetID)
+                    }
 
-                        Picker("分类", selection: kindBinding(preset)) {
-                            ForEach(BuiltInPresets.restorableKinds, id: \.self) { kind in
-                                Text(kindTitle(kind)).tag(kind)
+                    if preset.kind == .custom {
+                        Label("自由组件 · 每个组件都是独立的 Touch Bar 项目", systemImage: "slider.horizontal.3")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        HStack {
+                            Picker("内容类型", selection: contentBinding(preset)) {
+                                ForEach(supportedContents, id: \.self) { content in
+                                    Text(contentTitle(content)).tag(content)
+                                }
                             }
+                            .frame(maxWidth: 300)
+
+                            Picker("分类", selection: kindBinding(preset)) {
+                                ForEach(BuiltInPresets.restorableKinds, id: \.self) { kind in
+                                    Text(kindTitle(kind)).tag(kind)
+                                }
+                            }
+                            .frame(maxWidth: 260)
                         }
-                        .frame(maxWidth: 260)
+                    }
+
+                    TouchBarLayoutEditor(preset: preset, selectedItemID: $selectedItemID)
+
+                    Divider()
+
+                    if preset.kind == .custom {
+                        CustomPresetEditor(presetID: preset.id, selectedItemID: $selectedItemID)
+                    } else {
+                        switch preset.content {
+                        case .unreadMessages:
+                            MessagesPresetDetail()
+                        case .actions, .nowPlaying:
+                            ActionItemsEditor(presetID: preset.id, selectedItemID: $selectedItemID)
+                        case .developerContext, .agentContext, .components:
+                            ContextItemsEditor(presetID: preset.id, selectedItemID: $selectedItemID)
+                        }
                     }
                 }
-
-                TouchBarLayoutEditor(preset: preset, selectedItemID: $selectedItemID)
-
-                Divider()
-
-                if preset.kind == .custom {
-                    CustomPresetEditor(presetID: preset.id, selectedItemID: $selectedItemID)
-                } else {
-                    switch preset.content {
-                    case .unreadMessages:
-                        MessagesPresetDetail()
-                    case .actions, .nowPlaying:
-                        ActionItemsEditor(presetID: preset.id, selectedItemID: $selectedItemID)
-                    case .developerContext, .agentContext, .components:
-                        ContextItemsEditor(presetID: preset.id, selectedItemID: $selectedItemID)
-                    }
+                .frame(width: max(0, geometry.size.width - 36), alignment: .topLeading)
+                .padding(18)
                 }
+                .frame(width: geometry.size.width, height: geometry.size.height)
             }
-            .padding(18)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 
