@@ -35,7 +35,8 @@ struct TouchBarLayoutEditor: View {
                     .font(.caption.monospacedDigit())
             }
             GeometryReader { geometry in
-                let scale = min(1, max(0.01, geometry.size.width / TouchBarLayoutMetrics.displayWidth))
+                let scale: CGFloat = 2
+                let contentWidth = max(TouchBarLayoutMetrics.displayWidth, totalWidth + 18)
                 ScrollView(.horizontal) {
                     HStack(spacing: canResize ? 4 : 1) {
                         ForEach(visibleItems) { item in
@@ -54,25 +55,32 @@ struct TouchBarLayoutEditor: View {
                                 drop(providers, before: nil)
                             }
                     }
-                    .frame(minWidth: TouchBarLayoutMetrics.dashboardWidth, alignment: .leading)
+                    .frame(width: contentWidth, height: TouchBarLayoutMetrics.displayHeight, alignment: .leading)
+                    .background(.black)
+                    .overlay(alignment: .leading) {
+                        PhysicalDisplayBoundary()
+                            .stroke(.white, style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
+                            .frame(width: 1, height: TouchBarLayoutMetrics.displayHeight)
+                            .frame(width: 10)
+                            .contentShape(Rectangle())
+                            .help("位于此虚线右侧的部分将超出 touchbar 显示区域")
+                            .offset(x: TouchBarLayoutMetrics.dashboardWidth - 5)
+                    }
+                    .scaleEffect(scale, anchor: .topLeading)
+                    .frame(width: contentWidth * scale,
+                           height: TouchBarLayoutMetrics.displayHeight * scale, alignment: .topLeading)
                 }
-                .scrollIndicators(.hidden)
-                .frame(width: TouchBarLayoutMetrics.displayWidth, height: TouchBarLayoutMetrics.displayHeight)
-                .background(.black)
-                .clipShape(RoundedRectangle(cornerRadius: 3))
-                .scaleEffect(scale, anchor: .topLeading)
-                .frame(width: TouchBarLayoutMetrics.displayWidth * scale,
-                       height: TouchBarLayoutMetrics.displayHeight * scale, alignment: .topLeading)
+                .frame(width: geometry.size.width, height: 80)
+                .background(.black, in: RoundedRectangle(cornerRadius: 6))
             }
-            .aspectRatio(TouchBarLayoutMetrics.displayWidth / TouchBarLayoutMetrics.displayHeight, contentMode: .fit)
-            .frame(maxWidth: TouchBarLayoutMetrics.displayWidth)
+            .frame(height: 80)
             Text(totalWidth > TouchBarLayoutMetrics.dashboardWidth
                  ? "内容超出可视宽度，预览可横向滚动。点击选择 · 拖动排序\(canResize ? " · 拖动右侧蓝色边缘调宽" : "；此内容类型使用固定宽度")"
                  : "点击选择 · 拖动排序\(canResize ? " · 拖动右侧蓝色边缘调宽" : "；此内容类型使用固定宽度")")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text("等比预览：1004 × 30 pt（约 33.47∶1），文字与图表一同缩放。内容为示例；隐藏组件不占宽度，条件隐藏的组件仍显示供编辑。")
+            Text("2 倍等比编辑预览，可横向滚动；白色纵向虚线标记 Touch Bar 显示边界。内容为示例；隐藏组件不占宽度，条件隐藏的组件仍显示供编辑。")
                 .font(.caption2).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -250,6 +258,15 @@ struct TouchBarLayoutEditor: View {
             }
         }
         return true
+    }
+}
+
+private struct PhysicalDisplayBoundary: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+        return path
     }
 }
 
