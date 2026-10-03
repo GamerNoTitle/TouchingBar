@@ -208,7 +208,22 @@ struct TouchBarLayoutEditor: View {
         case "batteryTime": return "剩余 3h12m"
         case "path": return "~/Projects/TouchingBar"
         case "branch": return "master"
-        default: return "42%"
+        case "changes": return "3 处改动"
+        case "python": return "Python 3.12.7"
+        case "node": return "Node v22.9.0"
+        case "java": return "OpenJDK 21.0.4"
+        case "go": return "go1.23.1"
+        case "rust": return "rustc 1.81.0"
+        case "ruby": return "ruby 3.3.5"
+        case "php": return "PHP 8.3.12"
+        case "swift": return "Swift 6.0"
+        case "docker": return "Docker 27.2.1"
+        case "kubernetes": return "kubectl v1.31.1"
+        case "terraform": return "Terraform v1.9.6"
+        case "cmake": return "cmake 3.30.3"
+        case "xcode": return "Xcode 16.0"
+        case "cpu", "gpu", "memory", "disk", "battery": return "42%"
+        default: return "—"
         }
     }
 
