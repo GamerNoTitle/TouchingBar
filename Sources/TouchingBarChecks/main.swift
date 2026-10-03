@@ -19,6 +19,13 @@ struct TouchingBarChecks {
         try checkSystemFunctionMigration()
         try checkRuntimeFormatting()
         try checkTouchBarLayoutBudget()
+        try checkVisualLayoutEditing()
+        if let index = CommandLine.arguments.firstIndex(of: "--check-demo"), index + 1 < CommandLine.arguments.count {
+            let demo = try BackupService().decode(Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[index + 1])))
+            try expect(demo.presets.count == 1 && demo.presets[0].kind == .custom && !demo.presets[0].isBuiltIn, "demo is standalone custom configuration, not built-in preset")
+            try expect(NetworkStatusSnapshot.contextKeys.isSubset(of: Set(demo.presets[0].items.compactMap(\.contextKey))), "demo contains all new network components")
+            try expect(demo.presets[0].items.allSatisfy { $0.networkProbeHost == nil }, "demo does not enable unsolicited probes")
+        }
         try await checkDeveloperContextProvider()
         try checkAgentHookNormalizer()
         try checkAgentSessionStore()
@@ -178,6 +185,29 @@ struct TouchingBarChecks {
             widthConfiguration.presets.first { $0.kind == .custom }?.items.first?.customWidth == 40,
             "custom item widths are clamped to a safe minimum"
         )
+    }
+
+    private static func checkVisualLayoutEditing() throws {
+        try expect(NetworkStatusSnapshot.normalizedProbeHost("-c 100") == nil, "ping options are rejected")
+        try expect(NetworkStatusSnapshot.normalizedProbeHost("https://example.com") == nil, "probe accepts hosts not URLs")
+        try expect(NetworkStatusSnapshot.empty.value(for: "networkLatency") == "未启用探测", "blank target never enables probing")
+        try expect(NetworkStatusSnapshot(wifiState: .ssidUnavailable).value(for: "wifiSSID")?.contains("权限受限") == true, "SSID restriction is reported honestly")
+        let first = TouchBarItemConfiguration(label: "Wi-Fi", presentation: .context, contextKey: "wifiSSID")
+        let second = TouchBarItemConfiguration(label: "IP", presentation: .context, contextKey: "localIP")
+        let third = TouchBarItemConfiguration(label: "延迟", presentation: .context, contextKey: "networkLatency", networkProbeHost: "192.168.1.1")
+        let preset = TouchBarPreset(name: "Test", kind: .custom, content: .components, items: [first, second, third])
+        try expect(TouchBarLayoutMetrics.itemWidth(first, preset: preset) == 120, "preview shares context width with renderer")
+        try expect(TouchBarLayoutMetrics.movingItem(in: preset.items, id: first.id, before: nil).map(\.id) == [second.id, third.id, first.id], "dragging to end preserves all items")
+        try expect(TouchBarLayoutMetrics.movingItem(in: preset.items, id: third.id, before: first.id).map(\.id) == [third.id, first.id, second.id], "dragging before target reorders correctly")
+        try expect(TouchBarLayoutMetrics.movingItem(in: preset.items, id: first.id, before: first.id) == preset.items, "dropping onto itself is a no-op")
+        var resized = first
+        resized.width = .custom
+        resized.customWidth = 2000
+        try expect(TouchBarLayoutMetrics.itemWidth(resized, preset: preset) == 1200, "preview custom width is safely clamped")
+        let data = try BackupService().encode(configuration: AppConfiguration(presets: [preset]))
+        let decoded = try BackupService().decode(data)
+        try expect(decoded.presets.first?.items.last?.networkProbeHost == "192.168.1.1", "per-component probe target survives backup")
+        try expect(BuiltInPresets.make().map(\.kind) == [.functionKeys, .systemFunctions, .developer, .music, .metrics], "network components add no built-in preset")
     }
 
     private static func checkLyricsScrollTiming() throws {

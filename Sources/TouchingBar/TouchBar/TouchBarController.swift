@@ -102,6 +102,10 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                 self.updateTimedContextValues()
             }
             .store(in: &cancellables)
+        store.$networkStatus
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateNetworkContextValues() }
+            .store(in: &cancellables)
         activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil,
@@ -142,6 +146,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     func stop() {
         guard isStarted else { return }
         isStarted = false
+        store.setActiveNetworkProbeHosts([])
         dismiss()
         if let systemTrayItem {
             TBSetControlStripPresence(systemTrayItem.identifier.rawValue, false)
@@ -157,6 +162,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         guard isStarted, let touchBar else { return }
         TBSetSystemModalShowsCloseBoxWhenFrontMost(!store.configuration.hideTouchBarCloseButton)
         TBPresentSystemModalTouchBar(touchBar, systemTrayItem?.identifier.rawValue, true)
+        updateActiveNetworkProbes()
         if ProcessInfo.processInfo.environment["TOUCHINGBAR_DEBUG"] == "1" {
             NSLog(
                 "TouchBar system modal presented isVisible=%@ identifiers=%ld",
@@ -183,6 +189,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     func dismiss() {
+        store.setActiveNetworkProbeHosts([])
         guard let touchBar else { return }
         TBDismissSystemModalTouchBar(touchBar)
     }
@@ -192,6 +199,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         presentationTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self, self.isStarted else { return }
+                self.updateActiveNetworkProbes()
                 guard self.touchBar?.isVisible != true else { return }
                 self.present()
             }
@@ -224,6 +232,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     private func rebuildTouchBar() {
+        updateActiveNetworkProbes()
         guard isStarted else { return }
         guard let activePreset = store.configuration.activePreset else { return }
         guard activePreset.kind != .metrics || hasReceivedSystemMetrics else { return }
@@ -290,32 +299,6 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             )
         }
         return item
-    }
-
-    private func imageWidth(for configuration: TouchBarItemConfiguration) -> CGFloat {
-        switch configuration.width {
-        case .compact:
-            return 44
-        case .regular:
-            return 80
-        case .wide:
-            return 140
-        case .custom:
-            return CGFloat(max(40, min(1200, configuration.customWidth ?? 80)))
-        }
-    }
-
-    private func customButtonWidth(for configuration: TouchBarItemConfiguration) -> CGFloat {
-        switch configuration.width {
-        case .compact:
-            return configuration.symbolName == nil ? 80 : 44
-        case .regular:
-            return configuration.symbolName == nil ? 130 : 80
-        case .wide:
-            return configuration.symbolName == nil ? 220 : 140
-        case .custom:
-            return CGFloat(max(40, min(1200, configuration.customWidth ?? 100)))
-        }
     }
 
     private func makePresetDashboardItem() -> NSCustomTouchBarItem? {
@@ -470,17 +453,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
 
     private func addContextViews(from preset: TouchBarPreset, to dashboard: NSStackView) {
         let visibleItems = preset.items.filter { !$0.isHidden && shouldDisplayContextItem($0) }
-        let widths = visibleItems.map { configuration in
-            if configuration.presentation == .context {
-                return contextWidth(for: configuration, preset: preset)
-            }
-            if configuration.presentation == .image {
-                return imageWidth(for: configuration)
-            }
-            return preset.kind == .custom
-                ? customButtonWidth(for: configuration)
-                : contextWidth(for: configuration, preset: preset)
-        }
+        let widths = visibleItems.map { TouchBarLayoutMetrics.itemWidth($0, preset: preset) }
         let spacing: CGFloat = 4
         let contentWidth = widths.reduce(0, +) + CGFloat(max(0, widths.count - 1)) * spacing
         let scrollView = ContextTouchBarScrollView(
@@ -592,96 +565,6 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         }
     }
 
-    private func contextWidth(
-        for configuration: TouchBarItemConfiguration,
-        preset: TouchBarPreset
-    ) -> CGFloat {
-        if configuration.width == .custom {
-            return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
-        }
-        if preset.kind == .developer {
-            switch configuration.width {
-            case .compact: return 60
-            case .regular: return 120
-            case .wide: return 240
-            case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
-            }
-        }
-        if preset.kind == .agents {
-            switch configuration.width {
-            case .compact: return 60
-            case .regular: return 120
-            case .wide: return 240
-            case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
-            }
-        }
-        if preset.kind == .metrics {
-            switch configuration.width {
-            case .compact: return 60
-            case .regular: return 120
-            case .wide: return 240
-            case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
-            }
-        }
-        if preset.kind == .custom {
-            let key = configuration.contextKey ?? ""
-            if ["lyric", "nowPlaying"].contains(key) {
-                switch configuration.width {
-                case .compact: return 120
-                case .regular: return 240
-                case .wide: return 480
-                case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
-                }
-            }
-            if ["latestMessage", "unreadSummary", "messageBadges"].contains(key) {
-                switch configuration.width {
-                case .compact: return 90
-                case .regular: return 180
-                case .wide: return 360
-                case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
-                }
-            }
-            if Self.metricContextKeys.contains(key) {
-                if ["batteryPower", "batteryTime"].contains(key) {
-                    switch configuration.width {
-                    case .compact: return 80
-                    case .regular: return 150
-                    case .wide: return 280
-                    case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
-                    }
-                }
-                switch configuration.width {
-                case .compact: return 60
-                case .regular: return 120
-                case .wide: return 240
-                case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
-                }
-            }
-            if Self.developerContextKeys.contains(key) {
-                switch configuration.width {
-                case .compact: return 60
-                case .regular: return 120
-                case .wide: return 240
-                case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
-                }
-            }
-            if ["provider", "task", "status", "detail", "duration", "sessions", "event", "tool", "cwd", "message"].contains(key) {
-                switch configuration.width {
-                case .compact: return 60
-                case .regular: return 120
-                case .wide: return 240
-                case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
-                }
-            }
-        }
-        switch configuration.width {
-        case .compact: return 60
-        case .regular: return 120
-        case .wide: return 240
-        case .custom: return CGFloat(max(40, min(1200, configuration.customWidth ?? 360)))
-        }
-    }
-
     @objc private func dashboardPan(_ sender: NSPanGestureRecognizer) {
         switch sender.state {
         case .began:
@@ -718,6 +601,29 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         }
     }
 
+    private func updateActiveNetworkProbes() {
+        guard isStarted, touchBar?.isVisible == true, let preset = store.configuration.activePreset,
+              preset.content == .components || preset.content == .developerContext else {
+            store.setActiveNetworkProbeHosts([])
+            return
+        }
+        let hosts = preset.items.filter {
+            $0.presentation == .context && $0.contextKey == "networkLatency"
+                && !$0.isHidden && shouldDisplayContextItem($0)
+        }.compactMap(\.networkProbeHost)
+        store.setActiveNetworkProbeHosts(hosts)
+    }
+
+    /// Network identity updates never rebuild dashboards or refresh metric charts/lyrics.
+    private func updateNetworkContextValues() {
+        for (id, view) in contextViews {
+            guard let configuration = contextConfigurations[id],
+                  let key = configuration.contextKey,
+                  NetworkStatusSnapshot.contextKeys.contains(key) else { continue }
+            updateContextView(view, configuration: configuration)
+        }
+    }
+
     private func updateTimedContextValues() {
         for (id, view) in contextViews {
             guard let configuration = contextConfigurations[id],
@@ -746,6 +652,12 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     private func updateContextView(_ view: ContextTouchBarView, configuration: TouchBarItemConfiguration) {
         let key = configuration.contextKey ?? ""
         let history = store.systemMetrics.history(for: key)
+        view.onClick = key == "localIP" ? { [weak self] in
+            guard let address = self?.store.networkStatus.localIP else { return }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(address, forType: .string)
+        } : nil
+        view.toolTip = key == "localIP" ? "点击复制本地 IP" : nil
         view.update(
             value: contextValue(for: key, configuration: configuration) ?? "—",
             history: history,
@@ -801,6 +713,9 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
     }
 
     private func contextValue(for key: String, configuration: TouchBarItemConfiguration? = nil) -> String? {
+        if NetworkStatusSnapshot.contextKeys.contains(key) {
+            return store.networkStatus.value(for: key, host: configuration?.networkProbeHost)
+        }
         if let value = store.runtime.value(for: key) {
             return value
         }
@@ -878,6 +793,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         fields.append(item.dateFormat ?? "")
         fields.append(item.timeFormat ?? "")
         fields.append(item.chartColorHex ?? "")
+        fields.append(item.networkProbeHost ?? "")
         fields.append(item.action.kind.rawValue)
         fields.append(item.action.value ?? "")
         fields.append(item.action.media?.rawValue ?? "")
@@ -1669,6 +1585,7 @@ private final class ImageTouchBarView: LoopingImageTouchBarView {
 }
 
 private final class ContextTouchBarView: NSView {
+    var onClick: (() -> Void)?
     private let titleLabel: NSTextField
     private let valueLabel = MarqueeTextField()
     private let sparkline = SparklineView()
@@ -1694,6 +1611,7 @@ private final class ContextTouchBarView: NSView {
         valueLabel.textColor = .white
 
         sparkline.isHidden = true
+        addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(contextClicked)))
 
         let stack = NSStackView()
         stack.orientation = .vertical
@@ -1738,6 +1656,10 @@ private final class ContextTouchBarView: NSView {
 
     override var intrinsicContentSize: NSSize {
         NSSize(width: preferredWidth, height: 30)
+    }
+
+    @objc private func contextClicked() {
+        onClick?()
     }
 
     func update(

@@ -1,0 +1,153 @@
+{
+  "formatVersion": 1,
+  "exportedAt": "2026-01-01T00:00:00Z",
+  "configuration": {
+    "schemaVersion": 1,
+    "id": "3B87785B-E5E2-4E38-9B71-E4333D31BF2D",
+    "activePresetID": "43AE599B-AA6C-4BCD-8819-DE05D915278B",
+    "alwaysOccupyTouchBar": true,
+    "hideTouchBarCloseButton": true,
+    "silentLaunch": true,
+    "disableAnimations": false,
+    "menuBar": {
+      "isEnabled": true
+    },
+    "messages": {
+      "showNotificationBanners": true,
+      "monitoredApplications": []
+    },
+    "webDAV": {
+      "serverURL": "",
+      "username": "",
+      "remotePath": "TouchingBar/backup.json"
+    },
+    "lyricsOffset": 0,
+    "lyricsScrollLead": 0.1,
+    "metricsHistorySeconds": 30,
+    "showAgentNotifications": true,
+    "presets": [
+      {
+        "id": "43AE599B-AA6C-4BCD-8819-DE05D915278B",
+        "name": "布局与网络演示（独立配置）",
+        "kind": "custom",
+        "content": "components",
+        "isBuiltIn": false,
+        "hideWhenNotPlaying": false,
+        "items": [
+          {
+            "id": "7DCCA03D-5B54-41CE-A82D-0A767DC62659",
+            "label": "时间",
+            "width": "custom",
+            "customWidth": 100,
+            "isHidden": false,
+            "hideWhenNotPlaying": false,
+            "hideWhenPlaying": false,
+            "showsLabel": true,
+            "dualLineLyrics": false,
+            "presentation": "context",
+            "action": {
+              "kind": "none"
+            },
+            "contextKey": "time"
+          },
+          {
+            "id": "093AB99A-653B-4B12-A053-8F5AD91BCD7F",
+            "label": "Wi-Fi",
+            "width": "custom",
+            "customWidth": 160,
+            "isHidden": false,
+            "hideWhenNotPlaying": false,
+            "hideWhenPlaying": false,
+            "showsLabel": true,
+            "dualLineLyrics": false,
+            "presentation": "context",
+            "action": {
+              "kind": "none"
+            },
+            "contextKey": "wifiSSID"
+          },
+          {
+            "id": "6BF8362B-61DA-4422-B617-52503EBE8282",
+            "label": "本机 IP",
+            "width": "custom",
+            "customWidth": 170,
+            "isHidden": false,
+            "hideWhenNotPlaying": false,
+            "hideWhenPlaying": false,
+            "showsLabel": true,
+            "dualLineLyrics": false,
+            "presentation": "context",
+            "action": {
+              "kind": "none"
+            },
+            "contextKey": "localIP"
+          },
+          {
+            "id": "65226AE0-913F-4DF5-A5F4-3B51B319C1D9",
+            "label": "VPN / 隧道",
+            "width": "custom",
+            "customWidth": 180,
+            "isHidden": false,
+            "hideWhenNotPlaying": false,
+            "hideWhenPlaying": false,
+            "showsLabel": true,
+            "dualLineLyrics": false,
+            "presentation": "context",
+            "action": {
+              "kind": "none"
+            },
+            "contextKey": "vpnStatus"
+          },
+          {
+            "id": "DE7A241C-B70C-40E0-B8E9-B65D1D8DEF99",
+            "label": "延迟",
+            "width": "custom",
+            "customWidth": 140,
+            "isHidden": false,
+            "hideWhenNotPlaying": false,
+            "hideWhenPlaying": false,
+            "showsLabel": true,
+            "dualLineLyrics": false,
+            "presentation": "context",
+            "action": {
+              "kind": "none"
+            },
+            "contextKey": "networkLatency"
+          },
+          {
+            "id": "1A2D8864-F7A9-4A94-9C62-E7F85C07691C",
+            "label": "下载",
+            "width": "custom",
+            "customWidth": 110,
+            "isHidden": false,
+            "hideWhenNotPlaying": false,
+            "hideWhenPlaying": false,
+            "showsLabel": true,
+            "dualLineLyrics": false,
+            "presentation": "context",
+            "action": {
+              "kind": "none"
+            },
+            "contextKey": "networkDownload"
+          },
+          {
+            "id": "82094493-551D-48A4-A446-2175E33EC78B",
+            "label": "上传",
+            "width": "custom",
+            "customWidth": 110,
+            "isHidden": false,
+            "hideWhenNotPlaying": false,
+            "hideWhenPlaying": false,
+            "showsLabel": true,
+            "dualLineLyrics": false,
+            "presentation": "context",
+            "action": {
+              "kind": "none"
+            },
+            "contextKey": "networkUpload"
+          }
+        ]
+      }
+    ]
+  }
+}

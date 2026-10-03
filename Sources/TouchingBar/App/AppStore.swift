@@ -17,6 +17,7 @@ final class AppStore: ObservableObject {
     @Published var activeApplicationName: String?
     @Published var touchBarStatus = "Touch Bar：等待启动"
     @Published var systemMetrics = SystemMetricsSnapshot.empty
+    @Published private(set) var networkStatus = NetworkStatusSnapshot.empty
     @Published private(set) var hasStoredWebDAVPassword = false
 
     let configurationStore: ConfigurationStore
@@ -29,6 +30,7 @@ final class AppStore: ObservableObject {
     private var savedConfiguration: AppConfiguration
     private let developerRefreshQueue = DispatchQueue(label: "app.touchingbar.developer-refresh", qos: .utility)
     private let systemMetricsService = SystemMetricsService()
+    private let networkStatusService = NetworkStatusService()
     private var refreshTimer: Timer?
     private var lastDeveloperRefresh = Date.distantPast
     private var lastWorkingDirectory: String?
@@ -65,6 +67,10 @@ final class AppStore: ObservableObject {
         systemMetricsService.start { [weak self] snapshot in
             self?.systemMetrics = snapshot
         }
+        networkStatusService.start { [weak self] snapshot in
+            guard self?.networkStatus != snapshot else { return }
+            self?.networkStatus = snapshot
+        }
         systemMetricsService.setHistoryDuration(seconds: configuration.effectiveMetricsHistorySeconds)
         $configuration
             .map(\.effectiveMetricsHistorySeconds)
@@ -78,7 +84,13 @@ final class AppStore: ObservableObject {
     deinit {
         refreshTimer?.invalidate()
         systemMetricsService.stop()
+        networkStatusService.stop()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
+    }
+
+    /// The controller supplies hosts only from active, visible latency components.
+    func setActiveNetworkProbeHosts(_ hosts: [String]) {
+        networkStatusService.setActiveProbeHosts(hosts)
     }
 
     func save() {

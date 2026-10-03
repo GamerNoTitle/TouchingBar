@@ -156,6 +156,8 @@ private struct PresetDetailView: View {
                     }
                 }
 
+                TouchBarLayoutEditor(preset: preset, selectedItemID: $selectedItemID)
+
                 Divider()
 
                 if preset.kind == .custom {
@@ -399,6 +401,13 @@ private struct CustomPresetEditor: View {
                 }
             }
 
+            Section("网络状态") {
+                Button("Wi-Fi 名称") { addContext("Wi-Fi", key: "wifiSSID", width: .regular, symbol: "wifi") }
+                Button("本机 IP（点击复制）") { addContext("本机 IP", key: "localIP", width: .regular, symbol: "network") }
+                Button("VPN / 隧道状态") { addContext("VPN / 隧道", key: "vpnStatus", width: .regular, symbol: "shield") }
+                Button("目标延迟（需设置目标）") { addContext("延迟", key: "networkLatency", width: .regular, symbol: "waveform.path") }
+            }
+
             Section("开发者") {
                 ForEach(Self.developerOptions) { option in
                     Button(option.title) {
@@ -550,6 +559,7 @@ private struct CustomPresetEditor: View {
             "cpu": "CPU", "gpu": "GPU", "memory": "内存", "disk": "硬盘",
             "cpuTemperature": "CPU 温度", "fanRPM": "风扇",
             "networkDownload": "下载速度", "networkUpload": "上传速度",
+            "wifiSSID": "Wi-Fi 名称", "localIP": "本机 IP", "vpnStatus": "VPN / 隧道", "networkLatency": "目标延迟",
             "battery": "电池电量", "batteryPower": "电池功率", "batteryTime": "电池时间",
             "nowPlaying": "正在播放", "lyric": "当前歌词",
             "date": "日期", "time": "时间", "dateTime": "日期 + 时间",
@@ -1778,6 +1788,7 @@ private struct ContextItemsEditor: View {
             "cpu": "CPU", "gpu": "GPU", "memory": "内存", "disk": "硬盘",
             "cpuTemperature": "CPU 温度", "fanRPM": "风扇",
             "networkDownload": "下载速度", "networkUpload": "上传速度",
+            "wifiSSID": "Wi-Fi 名称", "localIP": "本机 IP", "vpnStatus": "VPN / 隧道", "networkLatency": "目标延迟",
             "battery": "电池电量", "batteryPower": "电池功率", "batteryTime": "电池时间",
             "nowPlaying": "正在播放", "lyric": "当前歌词",
             "date": "日期", "time": "时间", "dateTime": "日期 + 时间",
@@ -1856,6 +1867,10 @@ private struct ContextItemEditor: View {
                 Text("风扇").tag("fanRPM")
                 Text("下载速度").tag("networkDownload")
                 Text("上传速度").tag("networkUpload")
+                Text("Wi-Fi 名称").tag("wifiSSID")
+                Text("本机 IP（点击复制）").tag("localIP")
+                Text("VPN / 隧道状态").tag("vpnStatus")
+                Text("目标延迟").tag("networkLatency")
                 Text("正在播放").tag("nowPlaying")
                 Text("当前歌词").tag("lyric")
                 Text("日期").tag("date")
@@ -1864,6 +1879,19 @@ private struct ContextItemEditor: View {
                 Text("电池电量").tag("battery")
                 Text("电池功率").tag("batteryPower")
                 Text("电池时间").tag("batteryTime")
+            }
+            if contextKey == "networkLatency" {
+                TextField("探测目标（主机名或 IP）", text: optionalStringBinding(\.networkProbeHost))
+                Text("留空不探测；仅显示此组件时每 10 秒发一个 ICMP 请求（最多 4 个不同目标），超时不代表断网。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if contextKey == "wifiSSID" {
+                Text("macOS 可能限制读取 Wi-Fi 名称；受限时显示状态，不会伪造 SSID。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if contextKey == "vpnStatus" {
+                Text("根据活动隧道接口判断，不保证对应商业 VPN 的真实连接状态。")
+                    .font(.caption).foregroundStyle(.secondary)
             }
             if isDateRelatedItem {
                 Picker("日期格式", selection: dateFormatBinding) {
