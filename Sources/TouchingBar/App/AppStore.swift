@@ -16,6 +16,7 @@ final class AppStore: ObservableObject {
     @Published var hookServerRunning = false
     @Published var activeApplicationName: String?
     @Published var touchBarStatus = "Touch Bar：等待启动"
+    @Published var nowPlaying = NowPlayingSnapshot.unavailable
     @Published var systemMetrics = SystemMetricsSnapshot.empty
     @Published private(set) var networkStatus = NetworkStatusSnapshot.empty
     @Published private(set) var hasStoredWebDAVPassword = false

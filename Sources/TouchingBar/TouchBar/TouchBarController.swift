@@ -133,6 +133,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         nowPlayingService.start()
         nowPlayingService.observe { [weak self] snapshot in
             self?.latestNowPlaying = snapshot
+            self?.store.nowPlaying = snapshot
             self?.rebuildTouchBar()
             self?.nowPlayingViews.forEach { $0.update(snapshot, lead: self?.store.configuration.effectiveLyricsScrollLead ?? 0.1) }
             self?.updateContextValues()

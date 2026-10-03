@@ -67,7 +67,7 @@ struct SettingsRootView: View {
             .navigationTitle(selectedTab.title)
         }
         .frame(minWidth: 840, minHeight: 560)
-        .overlay(alignment: .bottomTrailing) {
+        .overlay(alignment: .topTrailing) {
             if store.hasUnsavedChanges {
                 HStack(spacing: 10) {
                     Text("有未保存的更改")
@@ -91,7 +91,7 @@ struct SettingsRootView: View {
                         .stroke(Color.primary.opacity(0.10), lineWidth: 1)
                 }
                 .padding(14)
-                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .animation(.easeInOut(duration: 0.16), value: store.hasUnsavedChanges)

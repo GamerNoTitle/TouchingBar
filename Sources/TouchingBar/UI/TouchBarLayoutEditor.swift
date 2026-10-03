@@ -3,7 +3,7 @@ import SwiftUI
 import TouchingBarCore
 import UniformTypeIdentifiers
 
-/// Editing preview; placeholder values are explicitly marked, not live hardware data.
+/// Editing preview backed by existing runtime collectors; playback visibility is simulated.
 struct TouchBarLayoutEditor: View {
     @EnvironmentObject private var store: AppStore
     let preset: TouchBarPreset
@@ -60,7 +60,7 @@ struct TouchBarLayoutEditor: View {
                             Text("动态内容面板").foregroundStyle(.white).font(.system(size: 10))
                         }
                         if showsNowPlayingPanel {
-                            Text("歌曲名称 · 歌词预览")
+                            Text("\(store.nowPlaying.compactTitle) · \(store.nowPlaying.currentLyricLine ?? "—")")
                                 .foregroundStyle(.white).font(.system(size: 10))
                                 .frame(width: TouchBarLayoutMetrics.lyricsWidth, height: 30)
                         }
@@ -94,7 +94,7 @@ struct TouchBarLayoutEditor: View {
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text("2 倍等比编辑预览，可横向滚动；白色纵向虚线标记 Touch Bar 显示边界。内容为示例；播放开关仅模拟预览，隐藏条件随播放状态生效。")
+            Text("2 倍等比编辑预览，可横向滚动；白色纵向虚线标记 Touch Bar 显示边界。使用已有采集服务的实时数据，未取得的数据显示 —；播放开关仅模拟显示条件，不控制播放器。")
                 .font(.caption2).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -152,15 +152,17 @@ struct TouchBarLayoutEditor: View {
             } else {
                 Image(systemName: "pawprint.fill").foregroundStyle(.pink).font(.title3)
             }
-        } else if item.presentation == .context && isChartMetric(item) {
+        } else if item.presentation == .context && isChartMetric(item)
+                    && (store.systemMetrics.history(for: item.contextKey ?? "")?.count ?? 0) >= 2 {
             VStack(alignment: .leading, spacing: 2) {
                 if item.showsLabel {
-                    Text("\(item.label)  \(sampleValue(item))")
+                    Text("\(item.label)  \(liveValue(item))")
                         .font(.system(size: 8, weight: .semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
                 }
-                PreviewSparkline()
+                PreviewSparkline(values: store.systemMetrics.history(for: item.contextKey ?? "") ?? [],
+                                 range: store.systemMetrics.chartRange(for: item.contextKey ?? "", history: store.systemMetrics.history(for: item.contextKey ?? "") ?? []))
                     .stroke(chartColor(item), style: StrokeStyle(lineWidth: 1.2, lineCap: .round, lineJoin: .round))
                     .frame(height: 12)
             }
@@ -170,9 +172,9 @@ struct TouchBarLayoutEditor: View {
                 if item.showsLabel && !item.dualLineLyrics {
                     Text(item.label.uppercased()).font(.system(size: 8, weight: .semibold))
                 }
-                Text(sampleValue(item)).font(.system(size: 10, design: .monospaced))
+                Text(liveValue(item)).font(.system(size: 10, design: .monospaced))
                 if item.dualLineLyrics {
-                    Text("Translation / 下一句示例").font(.system(size: 8)).foregroundStyle(.gray)
+                    Text(store.nowPlaying.currentDualLineLyricPair?.secondary ?? "—").font(.system(size: 8)).foregroundStyle(.gray)
                 }
             }
             .foregroundStyle(.white).lineLimit(1).padding(.horizontal, 4)
@@ -216,42 +218,32 @@ struct TouchBarLayoutEditor: View {
         return nil
     }
 
-    private func sampleValue(_ item: TouchBarItemConfiguration) -> String {
-        switch item.contextKey {
-        case "wifiSSID": return "Home Wi-Fi"
-        case "localIP": return "192.168.1.23"
-        case "vpnStatus": return "隧道活动（示例）"
-        case "networkLatency": return "18 ms"
-        case "lyric": return "这是一句较长的歌词，用于查看组件宽度"
-        case "nowPlaying": return "歌曲名称 · 歌手"
-        case "time": return "12:34:56"
-        case "date": return "9月25日 周五"
-        case "dateTime": return "9月25日 12:34:56"
-        case "networkDownload": return "↓ 2.4 MB/s"
-        case "networkUpload": return "↑ 128 KB/s"
-        case "cpuTemperature": return "56.2°C"
-        case "fanRPM": return "2100 RPM"
-        case "batteryPower": return "8.4 W"
-        case "batteryTime": return "剩余 3h12m"
-        case "path": return "~/Projects/TouchingBar"
-        case "branch": return "master"
-        case "changes": return "3 处改动"
-        case "python": return "Python 3.12.7"
-        case "node": return "Node v22.9.0"
-        case "java": return "OpenJDK 21.0.4"
-        case "go": return "go1.23.1"
-        case "rust": return "rustc 1.81.0"
-        case "ruby": return "ruby 3.3.5"
-        case "php": return "PHP 8.3.12"
-        case "swift": return "Swift 6.0"
-        case "docker": return "Docker 27.2.1"
-        case "kubernetes": return "kubectl v1.31.1"
-        case "terraform": return "Terraform v1.9.6"
-        case "cmake": return "cmake 3.30.3"
-        case "xcode": return "Xcode 16.0"
-        case "cpu", "gpu", "memory", "disk", "battery": return "42%"
+    private func liveValue(_ item: TouchBarItemConfiguration) -> String {
+        let key = item.contextKey ?? ""
+        if NetworkStatusSnapshot.contextKeys.contains(key) {
+            return store.networkStatus.value(for: key, host: item.networkProbeHost) ?? "—"
+        }
+        if let value = store.runtime.value(for: key) { return value }
+        if let value = store.systemMetrics.value(for: key) { return value }
+        switch key {
+        case "nowPlaying": return store.nowPlaying.compactTitle
+        case "lyric":
+            return item.dualLineLyrics
+                ? store.nowPlaying.currentDualLineLyricPair?.original ?? "—"
+                : store.nowPlaying.currentLyricLine ?? "—"
+        case "date": return formattedDate(item.dateFormat, fallback: "M月d日 EEE")
+        case "time": return formattedDate(item.timeFormat, fallback: "HH:mm:ss")
+        case "dateTime":
+            return "\(formattedDate(item.dateFormat, fallback: "M月d日 EEE")) \(formattedDate(item.timeFormat, fallback: "HH:mm:ss"))"
         default: return "—"
         }
+    }
+
+    private func formattedDate(_ pattern: String?, fallback: String) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = pattern?.isEmpty == false ? pattern : fallback
+        return formatter.string(from: Date())
     }
 
     private func drop(_ providers: [NSItemProvider], before target: UUID?) -> Bool {
@@ -284,14 +276,19 @@ private struct PhysicalDisplayBoundary: Shape {
     }
 }
 
-/// Stable synthetic samples, so the layout preview does not run another sampler.
+/// Uses the same collected history and value range as the physical renderer.
 private struct PreviewSparkline: Shape {
+    let values: [Double]
+    let range: ClosedRange<Double>?
+
     func path(in rect: CGRect) -> Path {
-        let values: [CGFloat] = [0.3, 0.35, 0.28, 0.5, 0.42, 0.46, 0.75, 0.62, 0.55, 0.7, 0.48, 0.52]
+        guard values.count >= 2, let range else { return Path() }
+        let span = max(0.0001, range.upperBound - range.lowerBound)
         var path = Path()
         for (index, value) in values.enumerated() {
+            let normalized = CGFloat(min(1, max(0, (value - range.lowerBound) / span)))
             let point = CGPoint(x: rect.minX + rect.width * CGFloat(index) / CGFloat(values.count - 1),
-                                y: rect.maxY - value * rect.height)
+                                y: rect.maxY - normalized * rect.height)
             if index == 0 { path.move(to: point) } else { path.addLine(to: point) }
         }
         return path
