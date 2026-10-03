@@ -50,13 +50,18 @@ struct SettingsRootView: View {
             .navigationSplitViewColumnWidth(min: 190, ideal: 215, max: 260)
             .navigationTitle("TouchingBar")
         } detail: {
-            ZStack {
-                tabContent(.general) { GeneralSettingsView() }
-                tabContent(.presets) { PresetsSettingsView() }
-                tabContent(.pets) { PetsSettingsView() }
-                tabContent(.integrations) { IntegrationsSettingsView() }
-                tabContent(.backup) { BackupSettingsView() }
-                tabContent(.about) { AboutSettingsView() }
+            // Transparent pages still contribute their minimum sizes in a ZStack.
+            // Only mount the selected page so a hidden editor cannot stretch and
+            // clip the navigation split view or an unrelated settings form.
+            Group {
+                switch selectedTab {
+                case .general: GeneralSettingsView()
+                case .presets: PresetsSettingsView()
+                case .pets: PetsSettingsView()
+                case .integrations: IntegrationsSettingsView()
+                case .backup: BackupSettingsView()
+                case .about: AboutSettingsView()
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .navigationTitle(selectedTab.title)
@@ -102,17 +107,6 @@ struct SettingsRootView: View {
         }
     }
 
-    @ViewBuilder
-    private func tabContent<Content: View>(
-        _ tab: SettingsTab,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        content()
-            .opacity(selectedTab == tab ? 1 : 0)
-            .disabled(selectedTab != tab)
-            .accessibilityHidden(selectedTab != tab)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
 }
 
 
