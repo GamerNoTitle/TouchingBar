@@ -37,6 +37,7 @@ public final class CodexPetStore: @unchecked Sendable {
     public let petsDirectoryURL: URL
     public let codexPetsDirectoryURL: URL
     private let fileManager: FileManager
+    private var installedPetsCache: [CodexPet]?
 
     public init(
         applicationSupportDirectory: URL? = nil,
@@ -56,7 +57,10 @@ public final class CodexPetStore: @unchecked Sendable {
     }
 
     public func installedPets() -> [CodexPet] {
-        pets(in: petsDirectoryURL, source: .installed)
+        if let installedPetsCache { return installedPetsCache }
+        let pets = pets(in: petsDirectoryURL, source: .installed)
+        installedPetsCache = pets
+        return pets
     }
 
     public func externalPets() -> [CodexPet] {
@@ -123,6 +127,7 @@ public final class CodexPetStore: @unchecked Sendable {
             ) else {
                 throw CodexPetStoreError.invalidManifest("安装后的 pet.json 无法重新读取")
             }
+            installedPetsCache = nil
             return installed
         } catch let error as CodexPetStoreError {
             throw error
@@ -135,6 +140,7 @@ public final class CodexPetStore: @unchecked Sendable {
         let directory = petsDirectoryURL.appendingPathComponent(petID, isDirectory: true)
         guard fileManager.fileExists(atPath: directory.path) else { return }
         try fileManager.removeItem(at: directory)
+        installedPetsCache = nil
     }
 
     private func decodeManifest(at url: URL) throws -> CodexPetManifest {

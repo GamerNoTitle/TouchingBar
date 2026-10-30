@@ -150,7 +150,8 @@ final class NowPlayingService {
     func start() {
         guard timer == nil else { return }
         let timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now(), repeating: 0.5)
+        // AppleScript/MediaRemote polling is relatively expensive; lyrics animate locally.
+        timer.schedule(deadline: .now(), repeating: 1.5, leeway: .milliseconds(150))
         timer.setEventHandler { [weak self] in
             self?.pollOnce()
         }
