@@ -470,7 +470,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             if configuration.contextKey == "lyric", configuration.dualLineLyrics {
                 let view = DualLineLyricsTouchBarView(
                     width: width,
-                    animationsEnabled: !store.configuration.effectiveDisableAnimations
+                    animationsEnabled: !store.configuration.effectiveDisableAnimations && !configuration.staticPet
                 )
                 view.update(
                     pair: latestNowPlaying?.currentDualLineLyricPair,
@@ -489,7 +489,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                         pet: pet,
                         assetID: configuration.petAssetID,
                         width: width,
-                        animationsEnabled: !store.configuration.effectiveDisableAnimations
+                        animationsEnabled: !store.configuration.effectiveDisableAnimations && !configuration.staticPet
                     )
                     petViews[configuration.id] = petView
                     view = petView

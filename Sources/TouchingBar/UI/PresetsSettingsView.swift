@@ -1941,6 +1941,9 @@ private struct ContextItemEditor: View {
                     .toggleStyle(.switch)
             }
             HideWhenPlayingToggle(presetID: presetID, itemID: itemID, item: item)
+            if currentItem?.petID != nil || item.petID != nil {
+                StaticPetToggle(presetID: presetID, itemID: itemID, item: item)
+            }
             Toggle("隐藏组件", isOn: hiddenBinding)
                 .toggleStyle(.switch)
             HStack {
@@ -2112,6 +2115,34 @@ private struct HideWhenPlayingToggle: View {
             set: { value in
                 guard var updated = currentItem else { return }
                 updated.hideWhenPlaying = value
+                store.updateItem(presetID: presetID, item: updated)
+            }
+        )
+    }
+}
+
+private struct StaticPetToggle: View {
+    @EnvironmentObject private var store: AppStore
+    let presetID: UUID
+    let itemID: UUID
+    let item: TouchBarItemConfiguration
+
+    var body: some View {
+        Toggle("静态宠物", isOn: binding)
+            .toggleStyle(.switch)
+            .help("开启后只显示宠物的静态首帧；关闭时播放宠物动画")
+    }
+
+    private var currentItem: TouchBarItemConfiguration? {
+        store.configuration.presets.first(where: { $0.id == presetID })?.items.first(where: { $0.id == itemID })
+    }
+
+    private var binding: Binding<Bool> {
+        Binding(
+            get: { currentItem?.staticPet ?? item.staticPet },
+            set: { value in
+                guard var updated = currentItem else { return }
+                updated.staticPet = value
                 store.updateItem(presetID: presetID, item: updated)
             }
         )
