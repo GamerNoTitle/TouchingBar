@@ -37,7 +37,8 @@ public final class CodexPetStore: @unchecked Sendable {
     public let petsDirectoryURL: URL
     public let codexPetsDirectoryURL: URL
     private let fileManager: FileManager
-    private var installedPetsCache: [CodexPet]?
+    private let cacheLock = NSLock()
+    private var installedPetsCache: (pets: [CodexPet], stamp: String?)?
 
     public init(
         applicationSupportDirectory: URL? = nil,
@@ -57,10 +58,35 @@ public final class CodexPetStore: @unchecked Sendable {
     }
 
     public func installedPets() -> [CodexPet] {
-        if let installedPetsCache { return installedPetsCache }
+        let stamp = directoryStamp(petsDirectoryURL)
+        cacheLock.lock()
+        if let cached = installedPetsCache, cached.stamp == stamp {
+            let pets = cached.pets
+            cacheLock.unlock()
+            return pets
+        }
+        cacheLock.unlock()
+
         let pets = pets(in: petsDirectoryURL, source: .installed)
-        installedPetsCache = pets
+        cacheLock.lock()
+        installedPetsCache = (pets, directoryStamp(petsDirectoryURL))
+        cacheLock.unlock()
         return pets
+    }
+
+    /// Cheap change detector: pet installs add or remove top-level pet folders.
+    /// Avoids rescanning every pet.json on each Touch Bar rebuild.
+    private func directoryStamp(_ url: URL) -> String? {
+        guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey]),
+              let modified = values.contentModificationDate else { return nil }
+        let names = (try? fileManager.contentsOfDirectory(atPath: url.path))?.sorted() ?? []
+        return "\(modified.timeIntervalSince1970)|\(names.joined(separator: ","))"
+    }
+
+    private func invalidateInstalledPetsCache() {
+        cacheLock.lock()
+        installedPetsCache = nil
+        cacheLock.unlock()
     }
 
     public func externalPets() -> [CodexPet] {
@@ -127,7 +153,7 @@ public final class CodexPetStore: @unchecked Sendable {
             ) else {
                 throw CodexPetStoreError.invalidManifest("安装后的 pet.json 无法重新读取")
             }
-            installedPetsCache = nil
+            invalidateInstalledPetsCache()
             return installed
         } catch let error as CodexPetStoreError {
             throw error
@@ -140,7 +166,7 @@ public final class CodexPetStore: @unchecked Sendable {
         let directory = petsDirectoryURL.appendingPathComponent(petID, isDirectory: true)
         guard fileManager.fileExists(atPath: directory.path) else { return }
         try fileManager.removeItem(at: directory)
-        installedPetsCache = nil
+        invalidateInstalledPetsCache()
     }
 
     private func decodeManifest(at url: URL) throws -> CodexPetManifest {

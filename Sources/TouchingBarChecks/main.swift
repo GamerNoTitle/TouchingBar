@@ -209,6 +209,18 @@ struct TouchingBarChecks {
         let decoded = try BackupService().decode(data)
         try expect(decoded.presets.first?.items.last?.networkProbeHost == "192.168.1.1", "per-component probe target survives backup")
         try expect(BuiltInPresets.make().map(\.kind) == [.functionKeys, .systemFunctions, .developer, .music, .metrics], "network components add no built-in preset")
+
+        var petItem = TouchBarItemConfiguration(label: "宠物", petID: "xiaolemi", presentation: .image)
+        try expect(petItem.staticPet == false, "pets animate by default")
+        petItem.staticPet = true
+        let petData = try JSONEncoder().encode(petItem)
+        let petDecoded = try JSONDecoder().decode(TouchBarItemConfiguration.self, from: petData)
+        try expect(petDecoded.staticPet, "static pet switch survives a configuration round trip")
+        let legacyItem = try JSONDecoder().decode(
+            TouchBarItemConfiguration.self,
+            from: Data("{\"id\":\"\(UUID().uuidString)\",\"label\":\"旧宠物\",\"petID\":\"xiaolemi\"}".utf8)
+        )
+        try expect(legacyItem.staticPet == false, "older configurations without the switch keep animating")
     }
 
     private static func checkLyricsScrollTiming() throws {

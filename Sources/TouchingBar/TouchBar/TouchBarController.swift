@@ -470,7 +470,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
             if configuration.contextKey == "lyric", configuration.dualLineLyrics {
                 let view = DualLineLyricsTouchBarView(
                     width: width,
-                    animationsEnabled: !store.configuration.effectiveDisableAnimations && !configuration.staticPet
+                    animationsEnabled: !store.configuration.effectiveDisableAnimations
                 )
                 view.update(
                     pair: latestNowPlaying?.currentDualLineLyricPair,
@@ -489,7 +489,7 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
                         pet: pet,
                         assetID: configuration.petAssetID,
                         width: width,
-                        animationsEnabled: !store.configuration.effectiveDisableAnimations && !configuration.staticPet
+                        animationsEnabled: !configuration.staticPet
                     )
                     petViews[configuration.id] = petView
                     view = petView
@@ -782,6 +782,9 @@ final class TouchBarController: NSObject, NSTouchBarDelegate {
         fields.append(item.imagePath ?? "")
         fields.append(item.petID ?? "")
         fields.append(item.petAssetID ?? "")
+        // Rebuild immediately when the pet's static switch changes, otherwise the
+        // renderer keeps the previously built view and the switch appears dead.
+        fields.append(item.staticPet ? "static-pet" : "animated-pet")
         fields.append(item.width.rawValue)
         fields.append(item.customWidth.map { String(format: "%.2f", $0) } ?? "")
         fields.append(item.isHidden ? "hidden" : "visible")
